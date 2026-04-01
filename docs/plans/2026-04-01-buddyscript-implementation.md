@@ -1,0 +1,1674 @@
+# BuddyScript Implementation Plan
+
+> **For Claude:** REQUIRED SUB-SKILL: Use superpowers:executing-plans to implement this plan task-by-task.
+
+**Goal:** Convert 3 static HTML/CSS pages into a full-stack Next.js social media app with auth, feed, posts, likes, comments, and deployment.
+
+**Architecture:** Next.js 14 App Router monorepo with custom JWT auth, Prisma ORM, PostgreSQL (Neon), Cloudinary image uploads, deployed on Vercel.
+
+**Tech Stack:** Next.js 14, TypeScript, Prisma, PostgreSQL, bcrypt, jose, Cloudinary, Upstash Redis, Vitest, Playwright, Bootstrap (existing CSS)
+
+**Design Doc:** `docs/plans/2026-04-01-buddyscript-fullstack-design.md`
+
+---
+
+## Task 1: Project Scaffolding & Configuration
+
+**Files:**
+- Create: `buddyscript/` (new Next.js project root)
+- Create: `buddyscript/.env.example`
+- Create: `buddyscript/.env.local`
+- Create: `buddyscript/next.config.js`
+- Create: `buddyscript/.eslintrc.json`
+- Create: `buddyscript/.prettierrc`
+- Create: `buddyscript/tsconfig.json` (auto-generated, verify strict)
+
+**Step 1: Create Next.js project**
+
+```bash
+cd "F:/AppifyLab Task"
+npx create-next-app@14 buddyscript --typescript --eslint --app --src-dir --no-tailwind --import-alias "@/*"
+```
+
+**Step 2: Install dependencies**
+
+```bash
+cd buddyscript
+npm install prisma @prisma/client bcryptjs jose @upstash/ratelimit @upstash/redis cloudinary
+npm install -D @types/bcryptjs vitest @vitejs/plugin-react @playwright/test
+```
+
+**Step 3: Configure TypeScript strict mode**
+
+Verify `tsconfig.json` has `"strict": true`. If not, set it.
+
+**Step 4: Create .env.example**
+
+```env
+# Database
+DATABASE_URL="postgresql://user:password@host:5432/dbname?sslmode=require"
+
+# Auth
+JWT_SECRET="your-secret-key-min-32-chars"
+
+# Cloudinary
+NEXT_PUBLIC_CLOUDINARY_CLOUD_NAME="your-cloud-name"
+CLOUDINARY_API_KEY="your-api-key"
+CLOUDINARY_API_SECRET="your-api-secret"
+
+# Upstash Redis (rate limiting)
+UPSTASH_REDIS_REST_URL="your-upstash-url"
+UPSTASH_REDIS_REST_TOKEN="your-upstash-token"
+```
+
+**Step 5: Configure next.config.js with security headers**
+
+```js
+/** @type {import('next').NextConfig} */
+const nextConfig = {
+  images: {
+    remotePatterns: [
+      {
+        protocol: 'https',
+        hostname: 'res.cloudinary.com',
+      },
+    ],
+  },
+  async headers() {
+    return [
+      {
+        source: '/(.*)',
+        headers: [
+          { key: 'X-Content-Type-Options', value: 'nosniff' },
+          { key: 'X-Frame-Options', value: 'DENY' },
+          { key: 'Referrer-Policy', value: 'strict-origin-when-cross-origin' },
+          {
+            key: 'Content-Security-Policy',
+            value: "default-src 'self'; script-src 'self' 'unsafe-inline' 'unsafe-eval'; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src 'self' https://fonts.gstatic.com; img-src 'self' https://res.cloudinary.com data:; connect-src 'self' https://api.cloudinary.com;",
+          },
+        ],
+      },
+    ];
+  },
+};
+
+module.exports = nextConfig;
+```
+
+**Step 6: Configure ESLint and Prettier**
+
+`.prettierrc`:
+```json
+{
+  "semi": true,
+  "singleQuote": true,
+  "tabWidth": 2,
+  "trailingComma": "es5"
+}
+```
+
+**Step 7: Create environment validation**
+
+Create `buddyscript/src/lib/env.ts`:
+```ts
+const requiredEnvVars = [
+  'DATABASE_URL',
+  'JWT_SECRET',
+  'NEXT_PUBLIC_CLOUDINARY_CLOUD_NAME',
+  'CLOUDINARY_API_KEY',
+  'CLOUDINARY_API_SECRET',
+  'UPSTASH_REDIS_REST_URL',
+  'UPSTASH_REDIS_REST_TOKEN',
+] as const;
+
+export function validateEnv() {
+  const missing = requiredEnvVars.filter((key) => !process.env[key]);
+  if (missing.length > 0) {
+    throw new Error(`Missing required environment variables: ${missing.join(', ')}`);
+  }
+}
+```
+
+**Step 8: Commit**
+
+```bash
+git add .
+git commit -m "feat: scaffold Next.js project with TypeScript, ESLint, security headers, env validation"
+```
+
+---
+
+## Task 2: Copy CSS Assets & Configure Styling
+
+**Files:**
+- Copy: `assets/css/*` → `buddyscript/public/assets/css/`
+- Copy: `assets/images/*` → `buddyscript/public/assets/images/`
+- Copy: `assets/fonts/*` → `buddyscript/public/assets/fonts/`
+- Copy: `assets/js/bootstrap.bundle.min.js` → `buddyscript/public/assets/js/`
+- Create: `buddyscript/src/app/layout.tsx` (update with CSS imports)
+
+**Step 1: Copy all static assets**
+
+```bash
+cp -r "../assets" "buddyscript/public/assets"
+```
+
+**Step 2: Update root layout with CSS and font imports**
+
+`buddyscript/src/app/layout.tsx`:
+```tsx
+import type { Metadata } from 'next';
+
+export const metadata: Metadata = {
+  title: 'Buddy Script',
+  icons: { icon: '/assets/images/logo-copy.svg' },
+};
+
+export default function RootLayout({ children }: { children: React.ReactNode }) {
+  return (
+    <html lang="en">
+      <head>
+        <link rel="preconnect" href="https://fonts.googleapis.com" />
+        <link rel="preconnect" href="https://fonts.gstatic.com" crossOrigin="anonymous" />
+        <link
+          href="https://fonts.googleapis.com/css2?family=Poppins:wght@100;300;400;500;600;700;800&display=swap"
+          rel="stylesheet"
+        />
+        <link rel="stylesheet" href="/assets/css/bootstrap.min.css" />
+        <link rel="stylesheet" href="/assets/css/common.css" />
+        <link rel="stylesheet" href="/assets/css/main.css" />
+        <link rel="stylesheet" href="/assets/css/responsive.css" />
+      </head>
+      <body>{children}</body>
+    </html>
+  );
+}
+```
+
+**Step 3: Verify CSS loads correctly**
+
+Run: `npm run dev`
+Visit `http://localhost:3000` — verify fonts load, no 404s on CSS/images in browser console.
+
+**Step 4: Commit**
+
+```bash
+git add .
+git commit -m "feat: copy static assets and configure CSS/font imports in root layout"
+```
+
+---
+
+## Task 3: Prisma Schema & Database Setup
+
+**Files:**
+- Create: `buddyscript/prisma/schema.prisma`
+- Create: `buddyscript/src/lib/db.ts`
+
+**Step 1: Initialize Prisma**
+
+```bash
+cd buddyscript
+npx prisma init
+```
+
+**Step 2: Write the Prisma schema**
+
+`buddyscript/prisma/schema.prisma`:
+```prisma
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+enum Visibility {
+  PUBLIC
+  PRIVATE
+}
+
+model User {
+  id        String   @id @default(uuid())
+  firstName String   @db.VarChar(50)
+  lastName  String   @db.VarChar(50)
+  email     String   @unique @db.VarChar(255)
+  password  String
+  avatar    String?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  posts        Post[]
+  comments     Comment[]
+  postLikes    PostLike[]
+  commentLikes CommentLike[]
+
+  @@index([email])
+  @@index([createdAt])
+}
+
+model Post {
+  id           String     @id @default(uuid())
+  content      String     @db.Text
+  imageUrl     String?
+  visibility   Visibility @default(PUBLIC)
+  authorId     String
+  likeCount    Int        @default(0)
+  commentCount Int        @default(0)
+  createdAt    DateTime   @default(now())
+  updatedAt    DateTime   @updatedAt
+
+  author   User       @relation(fields: [authorId], references: [id], onDelete: Cascade)
+  comments Comment[]
+  likes    PostLike[]
+
+  @@index([authorId])
+  @@index([createdAt(sort: Desc), id(sort: Desc)])
+}
+
+model Comment {
+  id        String    @id @default(uuid())
+  content   String    @db.Text
+  postId    String
+  authorId  String
+  parentId  String?
+  likeCount Int       @default(0)
+  deletedAt DateTime?
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
+
+  post    Post          @relation(fields: [postId], references: [id], onDelete: Cascade)
+  author  User          @relation(fields: [authorId], references: [id], onDelete: Cascade)
+  parent  Comment?      @relation("CommentReplies", fields: [parentId], references: [id], onDelete: SetNull)
+  replies Comment[]     @relation("CommentReplies")
+  likes   CommentLike[]
+
+  @@index([postId, parentId, createdAt(sort: Desc), id(sort: Desc)])
+  @@index([authorId])
+}
+
+model PostLike {
+  id        String   @id @default(uuid())
+  userId    String
+  postId    String
+  createdAt DateTime @default(now())
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+  post Post @relation(fields: [postId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, postId])
+  @@index([postId, createdAt(sort: Desc), id(sort: Desc)])
+}
+
+model CommentLike {
+  id        String   @id @default(uuid())
+  userId    String
+  commentId String
+  createdAt DateTime @default(now())
+
+  user    User    @relation(fields: [userId], references: [id], onDelete: Cascade)
+  comment Comment @relation(fields: [commentId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, commentId])
+  @@index([commentId, createdAt(sort: Desc), id(sort: Desc)])
+}
+```
+
+**Step 3: Create Prisma client singleton**
+
+`buddyscript/src/lib/db.ts`:
+```ts
+import { PrismaClient } from '@prisma/client';
+
+const globalForPrisma = globalThis as unknown as { prisma: PrismaClient };
+
+export const prisma = globalForPrisma.prisma || new PrismaClient();
+
+if (process.env.NODE_ENV !== 'production') globalForPrisma.prisma = prisma;
+```
+
+**Step 4: Run migration**
+
+```bash
+npx prisma migrate dev --name init
+```
+
+Expected: Migration created and applied, Prisma client generated.
+
+**Step 5: Verify by running Prisma Studio**
+
+```bash
+npx prisma studio
+```
+
+Expected: Opens browser, shows all 5 tables with correct columns.
+
+**Step 6: Commit**
+
+```bash
+git add .
+git commit -m "feat: add Prisma schema with User, Post, Comment, PostLike, CommentLike tables"
+```
+
+---
+
+## Task 4: Auth Helpers & Utilities
+
+**Files:**
+- Create: `buddyscript/src/lib/auth.ts`
+- Create: `buddyscript/src/lib/validators.ts`
+- Create: `buddyscript/src/lib/rate-limit.ts`
+- Test: `buddyscript/src/__tests__/lib/auth.test.ts`
+- Test: `buddyscript/src/__tests__/lib/validators.test.ts`
+
+**Step 1: Write unit tests for auth helpers**
+
+`buddyscript/src/__tests__/lib/auth.test.ts`:
+```ts
+import { describe, it, expect } from 'vitest';
+import { hashPassword, comparePassword, signJWT, verifyJWT } from '@/lib/auth';
+
+describe('Password hashing', () => {
+  it('hashes and verifies a password', async () => {
+    const hash = await hashPassword('Test1234');
+    expect(hash).not.toBe('Test1234');
+    expect(await comparePassword('Test1234', hash)).toBe(true);
+    expect(await comparePassword('wrong', hash)).toBe(false);
+  });
+});
+
+describe('JWT', () => {
+  it('signs and verifies a token', async () => {
+    const token = await signJWT({ userId: 'test-id' });
+    const payload = await verifyJWT(token);
+    expect(payload.userId).toBe('test-id');
+  });
+
+  it('rejects a tampered token', async () => {
+    const token = await signJWT({ userId: 'test-id' });
+    await expect(verifyJWT(token + 'x')).rejects.toThrow();
+  });
+});
+```
+
+**Step 2: Write unit tests for validators**
+
+`buddyscript/src/__tests__/lib/validators.test.ts`:
+```ts
+import { describe, it, expect } from 'vitest';
+import { validateRegistration, validateLogin, validatePost, validateComment } from '@/lib/validators';
+
+describe('validateRegistration', () => {
+  it('accepts valid input', () => {
+    const result = validateRegistration({
+      firstName: 'John', lastName: 'Doe', email: 'john@example.com', password: 'Test1234',
+    });
+    expect(result.success).toBe(true);
+  });
+
+  it('rejects empty firstName', () => {
+    const result = validateRegistration({
+      firstName: '', lastName: 'Doe', email: 'john@example.com', password: 'Test1234',
+    });
+    expect(result.success).toBe(false);
+  });
+
+  it('rejects weak password', () => {
+    const result = validateRegistration({
+      firstName: 'John', lastName: 'Doe', email: 'john@example.com', password: 'short',
+    });
+    expect(result.success).toBe(false);
+  });
+
+  it('rejects invalid email', () => {
+    const result = validateRegistration({
+      firstName: 'John', lastName: 'Doe', email: 'notanemail', password: 'Test1234',
+    });
+    expect(result.success).toBe(false);
+  });
+
+  it('normalizes email to lowercase', () => {
+    const result = validateRegistration({
+      firstName: 'John', lastName: 'Doe', email: '  JOHN@Example.COM  ', password: 'Test1234',
+    });
+    expect(result.success).toBe(true);
+    if (result.success) expect(result.data.email).toBe('john@example.com');
+  });
+});
+
+describe('validatePost', () => {
+  it('accepts text post', () => {
+    const result = validatePost({ content: 'Hello world', visibility: 'PUBLIC' });
+    expect(result.success).toBe(true);
+  });
+
+  it('rejects empty content without image', () => {
+    const result = validatePost({ content: '', visibility: 'PUBLIC' });
+    expect(result.success).toBe(false);
+  });
+
+  it('accepts empty content with image', () => {
+    const result = validatePost({ content: '', visibility: 'PUBLIC', imageUrl: 'https://res.cloudinary.com/demo/image/upload/sample.jpg' });
+    expect(result.success).toBe(true);
+  });
+
+  it('rejects invalid visibility', () => {
+    const result = validatePost({ content: 'Hello', visibility: 'INVALID' });
+    expect(result.success).toBe(false);
+  });
+});
+
+describe('validateComment', () => {
+  it('accepts valid comment', () => {
+    const result = validateComment({ content: 'Nice post!' });
+    expect(result.success).toBe(true);
+  });
+
+  it('rejects empty content', () => {
+    const result = validateComment({ content: '' });
+    expect(result.success).toBe(false);
+  });
+
+  it('rejects content over 2000 chars', () => {
+    const result = validateComment({ content: 'a'.repeat(2001) });
+    expect(result.success).toBe(false);
+  });
+});
+```
+
+**Step 3: Run tests to verify they fail**
+
+```bash
+npx vitest run
+```
+
+Expected: FAIL — modules not found.
+
+**Step 4: Implement auth helpers**
+
+`buddyscript/src/lib/auth.ts`:
+```ts
+import bcrypt from 'bcryptjs';
+import { SignJWT, jwtVerify } from 'jose';
+import { cookies } from 'next/headers';
+import { prisma } from './db';
+
+const JWT_SECRET = new TextEncoder().encode(process.env.JWT_SECRET);
+const COOKIE_NAME = 'token';
+
+export async function hashPassword(password: string): Promise<string> {
+  return bcrypt.hash(password, 12);
+}
+
+export async function comparePassword(password: string, hash: string): Promise<boolean> {
+  return bcrypt.compare(password, hash);
+}
+
+export async function signJWT(payload: { userId: string }): Promise<string> {
+  return new SignJWT(payload)
+    .setProtectedHeader({ alg: 'HS256' })
+    .setIssuedAt()
+    .setExpirationTime('7d')
+    .sign(JWT_SECRET);
+}
+
+export async function verifyJWT(token: string): Promise<{ userId: string }> {
+  const { payload } = await jwtVerify(token, JWT_SECRET);
+  return payload as { userId: string };
+}
+
+export async function setAuthCookie(userId: string): Promise<void> {
+  const token = await signJWT({ userId });
+  const cookieStore = await cookies();
+  cookieStore.set(COOKIE_NAME, token, {
+    httpOnly: true,
+    secure: process.env.NODE_ENV === 'production',
+    sameSite: 'lax',
+    path: '/',
+    maxAge: 60 * 60 * 24 * 7, // 7 days
+  });
+}
+
+export async function clearAuthCookie(): Promise<void> {
+  const cookieStore = await cookies();
+  cookieStore.delete(COOKIE_NAME);
+}
+
+export async function getAuthToken(): Promise<string | undefined> {
+  const cookieStore = await cookies();
+  return cookieStore.get(COOKIE_NAME)?.value;
+}
+
+export async function requireUser(request: Request): Promise<{ userId: string }> {
+  const token = request.headers.get('cookie')
+    ?.split(';')
+    .find((c) => c.trim().startsWith(`${COOKIE_NAME}=`))
+    ?.split('=')[1];
+
+  if (!token) {
+    throw new Response(JSON.stringify({ error: 'Unauthorized' }), { status: 401 });
+  }
+
+  try {
+    return await verifyJWT(token);
+  } catch {
+    throw new Response(JSON.stringify({ error: 'Unauthorized' }), { status: 401 });
+  }
+}
+
+export async function requirePostAccess(postId: string, userId: string) {
+  const post = await prisma.post.findUnique({ where: { id: postId } });
+  if (!post) {
+    throw new Response(JSON.stringify({ error: 'Not found' }), { status: 404 });
+  }
+  if (post.visibility === 'PRIVATE' && post.authorId !== userId) {
+    throw new Response(JSON.stringify({ error: 'Forbidden' }), { status: 403 });
+  }
+  return post;
+}
+```
+
+**Step 5: Implement validators**
+
+`buddyscript/src/lib/validators.ts`:
+```ts
+type ValidationResult<T> =
+  | { success: true; data: T }
+  | { success: false; errors: Record<string, string> };
+
+export function validateRegistration(input: {
+  firstName: string;
+  lastName: string;
+  email: string;
+  password: string;
+}): ValidationResult<{ firstName: string; lastName: string; email: string; password: string }> {
+  const errors: Record<string, string> = {};
+  const firstName = input.firstName?.trim();
+  const lastName = input.lastName?.trim();
+  const email = input.email?.trim().toLowerCase();
+  const password = input.password;
+
+  if (!firstName || firstName.length > 50) errors.firstName = 'First name is required (max 50 chars)';
+  if (!lastName || lastName.length > 50) errors.lastName = 'Last name is required (max 50 chars)';
+  if (!email || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email) || email.length > 255)
+    errors.email = 'Valid email is required';
+  if (!password || password.length < 8 || password.length > 128)
+    errors.password = 'Password must be 8-128 characters';
+  else if (!/[a-zA-Z]/.test(password) || !/[0-9]/.test(password))
+    errors.password = 'Password must contain at least one letter and one number';
+
+  if (Object.keys(errors).length > 0) return { success: false, errors };
+  return { success: true, data: { firstName, lastName, email, password } };
+}
+
+export function validateLogin(input: { email: string; password: string }): ValidationResult<{ email: string; password: string }> {
+  const errors: Record<string, string> = {};
+  const email = input.email?.trim().toLowerCase();
+  const password = input.password;
+
+  if (!email) errors.email = 'Email is required';
+  if (!password) errors.password = 'Password is required';
+
+  if (Object.keys(errors).length > 0) return { success: false, errors };
+  return { success: true, data: { email, password } };
+}
+
+export function validatePost(input: {
+  content: string;
+  visibility: string;
+  imageUrl?: string;
+}): ValidationResult<{ content: string; visibility: 'PUBLIC' | 'PRIVATE'; imageUrl?: string }> {
+  const errors: Record<string, string> = {};
+  const content = input.content?.trim();
+  const visibility = input.visibility;
+  const imageUrl = input.imageUrl?.trim();
+  const cloudName = process.env.NEXT_PUBLIC_CLOUDINARY_CLOUD_NAME;
+
+  if (!content && !imageUrl) errors.content = 'Post must have text or an image';
+  if (content && content.length > 5000) errors.content = 'Post content max 5000 characters';
+  if (visibility !== 'PUBLIC' && visibility !== 'PRIVATE') errors.visibility = 'Visibility must be PUBLIC or PRIVATE';
+  if (imageUrl && cloudName && !imageUrl.startsWith(`https://res.cloudinary.com/${cloudName}/`))
+    errors.imageUrl = 'Invalid image URL';
+
+  if (Object.keys(errors).length > 0) return { success: false, errors };
+  return { success: true, data: { content: content || '', visibility: visibility as 'PUBLIC' | 'PRIVATE', imageUrl } };
+}
+
+export function validateComment(input: {
+  content: string;
+  parentId?: string;
+}): ValidationResult<{ content: string; parentId?: string }> {
+  const errors: Record<string, string> = {};
+  const content = input.content?.trim();
+
+  if (!content || content.length < 1) errors.content = 'Comment cannot be empty';
+  if (content && content.length > 2000) errors.content = 'Comment max 2000 characters';
+
+  if (Object.keys(errors).length > 0) return { success: false, errors };
+  return { success: true, data: { content, parentId: input.parentId } };
+}
+```
+
+**Step 6: Implement rate limiter**
+
+`buddyscript/src/lib/rate-limit.ts`:
+```ts
+import { Ratelimit } from '@upstash/ratelimit';
+import { Redis } from '@upstash/redis';
+
+const redis = new Redis({
+  url: process.env.UPSTASH_REDIS_REST_URL!,
+  token: process.env.UPSTASH_REDIS_REST_TOKEN!,
+});
+
+export const loginRateLimit = new Ratelimit({
+  redis,
+  limiter: Ratelimit.slidingWindow(5, '1 m'),
+  prefix: 'ratelimit:login',
+});
+
+export const registerRateLimit = new Ratelimit({
+  redis,
+  limiter: Ratelimit.slidingWindow(3, '1 m'),
+  prefix: 'ratelimit:register',
+});
+
+export function getClientIP(request: Request): string {
+  return request.headers.get('x-forwarded-for')?.split(',')[0]?.trim() || 'unknown';
+}
+```
+
+**Step 7: Configure Vitest**
+
+Create `buddyscript/vitest.config.ts`:
+```ts
+import { defineConfig } from 'vitest/config';
+import path from 'path';
+
+export default defineConfig({
+  test: {
+    environment: 'node',
+    globals: true,
+  },
+  resolve: {
+    alias: {
+      '@': path.resolve(__dirname, './src'),
+    },
+  },
+});
+```
+
+**Step 8: Run tests to verify they pass**
+
+```bash
+npx vitest run
+```
+
+Expected: All auth and validator tests PASS.
+
+**Step 9: Commit**
+
+```bash
+git add .
+git commit -m "feat: add auth helpers (JWT, bcrypt), validators, rate limiting, with unit tests"
+```
+
+---
+
+## Task 5: Auth API Routes
+
+**Files:**
+- Create: `buddyscript/src/app/api/auth/register/route.ts`
+- Create: `buddyscript/src/app/api/auth/login/route.ts`
+- Create: `buddyscript/src/app/api/auth/logout/route.ts`
+- Create: `buddyscript/src/app/api/auth/me/route.ts`
+- Test: `buddyscript/src/__tests__/api/auth.test.ts`
+
+**Step 1: Write integration tests for auth API**
+
+`buddyscript/src/__tests__/api/auth.test.ts`:
+```ts
+import { describe, it, expect, beforeAll } from 'vitest';
+
+const BASE_URL = 'http://localhost:3000';
+
+describe('Auth API', () => {
+  let authCookie: string;
+
+  it('registers a new user', async () => {
+    const res = await fetch(`${BASE_URL}/api/auth/register`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        firstName: 'Test', lastName: 'User',
+        email: `test-${Date.now()}@example.com`, password: 'Test1234',
+      }),
+    });
+    expect(res.status).toBe(201);
+    authCookie = res.headers.get('set-cookie') || '';
+    expect(authCookie).toContain('token=');
+  });
+
+  it('rejects duplicate email', async () => {
+    const email = `dup-${Date.now()}@example.com`;
+    await fetch(`${BASE_URL}/api/auth/register`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ firstName: 'A', lastName: 'B', email, password: 'Test1234' }),
+    });
+    const res = await fetch(`${BASE_URL}/api/auth/register`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ firstName: 'C', lastName: 'D', email, password: 'Test1234' }),
+    });
+    expect(res.status).toBe(409);
+  });
+
+  it('logs in with correct credentials', async () => {
+    const email = `login-${Date.now()}@example.com`;
+    await fetch(`${BASE_URL}/api/auth/register`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ firstName: 'A', lastName: 'B', email, password: 'Test1234' }),
+    });
+    const res = await fetch(`${BASE_URL}/api/auth/login`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ email, password: 'Test1234' }),
+    });
+    expect(res.status).toBe(200);
+    authCookie = res.headers.get('set-cookie') || '';
+    expect(authCookie).toContain('token=');
+  });
+
+  it('rejects wrong password', async () => {
+    const email = `wrong-${Date.now()}@example.com`;
+    await fetch(`${BASE_URL}/api/auth/register`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ firstName: 'A', lastName: 'B', email, password: 'Test1234' }),
+    });
+    const res = await fetch(`${BASE_URL}/api/auth/login`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ email, password: 'Wrong123' }),
+    });
+    expect(res.status).toBe(401);
+    const body = await res.json();
+    expect(body.error).toBe('Invalid email or password');
+  });
+
+  it('returns current user with valid cookie', async () => {
+    const res = await fetch(`${BASE_URL}/api/auth/me`, {
+      headers: { Cookie: authCookie },
+    });
+    expect(res.status).toBe(200);
+    const body = await res.json();
+    expect(body.user).toBeDefined();
+    expect(body.user.email).toBeDefined();
+  });
+
+  it('returns 401 without cookie', async () => {
+    const res = await fetch(`${BASE_URL}/api/auth/me`);
+    expect(res.status).toBe(401);
+  });
+
+  it('clears cookie on logout', async () => {
+    const res = await fetch(`${BASE_URL}/api/auth/logout`, {
+      method: 'POST',
+      headers: { Cookie: authCookie },
+    });
+    expect(res.status).toBe(200);
+    const setCookie = res.headers.get('set-cookie') || '';
+    expect(setCookie).toContain('token=');
+    expect(setCookie).toContain('Max-Age=0');
+  });
+});
+```
+
+**Step 2: Implement register route**
+
+`buddyscript/src/app/api/auth/register/route.ts`:
+```ts
+import { NextResponse } from 'next/server';
+import { prisma } from '@/lib/db';
+import { hashPassword, setAuthCookie } from '@/lib/auth';
+import { validateRegistration } from '@/lib/validators';
+import { registerRateLimit, getClientIP } from '@/lib/rate-limit';
+
+export async function POST(request: Request) {
+  const ip = getClientIP(request);
+  const { success: rateLimitOk } = await registerRateLimit.limit(ip);
+  if (!rateLimitOk) {
+    return NextResponse.json({ error: 'Too many attempts. Try again later.' }, { status: 429 });
+  }
+
+  const body = await request.json();
+  const validation = validateRegistration(body);
+  if (!validation.success) {
+    return NextResponse.json({ errors: validation.errors }, { status: 400 });
+  }
+
+  const { firstName, lastName, email, password } = validation.data;
+
+  const existing = await prisma.user.findUnique({ where: { email } });
+  if (existing) {
+    return NextResponse.json({ error: 'Email already registered' }, { status: 409 });
+  }
+
+  const hashedPassword = await hashPassword(password);
+  const user = await prisma.user.create({
+    data: { firstName, lastName, email, password: hashedPassword },
+  });
+
+  await setAuthCookie(user.id);
+
+  return NextResponse.json(
+    { user: { id: user.id, firstName: user.firstName, lastName: user.lastName, email: user.email } },
+    { status: 201 }
+  );
+}
+```
+
+**Step 3: Implement login route**
+
+`buddyscript/src/app/api/auth/login/route.ts`:
+```ts
+import { NextResponse } from 'next/server';
+import { prisma } from '@/lib/db';
+import { comparePassword, setAuthCookie } from '@/lib/auth';
+import { validateLogin } from '@/lib/validators';
+import { loginRateLimit, getClientIP } from '@/lib/rate-limit';
+
+export async function POST(request: Request) {
+  const ip = getClientIP(request);
+  const { success: rateLimitOk } = await loginRateLimit.limit(ip);
+  if (!rateLimitOk) {
+    return NextResponse.json({ error: 'Too many attempts. Try again later.' }, { status: 429 });
+  }
+
+  const body = await request.json();
+  const validation = validateLogin(body);
+  if (!validation.success) {
+    return NextResponse.json({ errors: validation.errors }, { status: 400 });
+  }
+
+  const { email, password } = validation.data;
+  const user = await prisma.user.findUnique({ where: { email } });
+
+  if (!user || !(await comparePassword(password, user.password))) {
+    return NextResponse.json({ error: 'Invalid email or password' }, { status: 401 });
+  }
+
+  await setAuthCookie(user.id);
+
+  return NextResponse.json({
+    user: { id: user.id, firstName: user.firstName, lastName: user.lastName, email: user.email },
+  });
+}
+```
+
+**Step 4: Implement logout and me routes**
+
+`buddyscript/src/app/api/auth/logout/route.ts`:
+```ts
+import { NextResponse } from 'next/server';
+import { clearAuthCookie } from '@/lib/auth';
+
+export async function POST() {
+  await clearAuthCookie();
+  return NextResponse.json({ success: true });
+}
+```
+
+`buddyscript/src/app/api/auth/me/route.ts`:
+```ts
+import { NextResponse } from 'next/server';
+import { requireUser } from '@/lib/auth';
+import { prisma } from '@/lib/db';
+
+export async function GET(request: Request) {
+  try {
+    const { userId } = await requireUser(request);
+    const user = await prisma.user.findUnique({
+      where: { id: userId },
+      select: { id: true, firstName: true, lastName: true, email: true, avatar: true },
+    });
+    if (!user) return NextResponse.json({ error: 'User not found' }, { status: 404 });
+    return NextResponse.json({ user });
+  } catch (error) {
+    if (error instanceof Response) return error;
+    return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+  }
+}
+```
+
+**Step 5: Implement middleware**
+
+`buddyscript/src/middleware.ts`:
+```ts
+import { NextResponse } from 'next/server';
+import type { NextRequest } from 'next/server';
+import { jwtVerify } from 'jose';
+
+const JWT_SECRET = new TextEncoder().encode(process.env.JWT_SECRET);
+const protectedRoutes = ['/feed'];
+const authRoutes = ['/login', '/register'];
+
+export async function middleware(request: NextRequest) {
+  const token = request.cookies.get('token')?.value;
+  const { pathname } = request.nextUrl;
+
+  let isAuthenticated = false;
+  if (token) {
+    try {
+      await jwtVerify(token, JWT_SECRET);
+      isAuthenticated = true;
+    } catch {
+      // Invalid token — treat as unauthenticated
+    }
+  }
+
+  if (protectedRoutes.some((route) => pathname.startsWith(route)) && !isAuthenticated) {
+    return NextResponse.redirect(new URL('/login', request.url));
+  }
+
+  if (authRoutes.some((route) => pathname.startsWith(route)) && isAuthenticated) {
+    return NextResponse.redirect(new URL('/feed', request.url));
+  }
+
+  if (pathname === '/' ) {
+    return NextResponse.redirect(new URL(isAuthenticated ? '/feed' : '/login', request.url));
+  }
+
+  return NextResponse.next();
+}
+
+export const config = {
+  matcher: ['/', '/feed/:path*', '/login', '/register'],
+};
+```
+
+**Step 6: Run integration tests**
+
+Start dev server in one terminal, run tests in another:
+```bash
+npm run dev &
+npx vitest run src/__tests__/api/auth.test.ts
+```
+
+Expected: All auth tests PASS.
+
+**Step 7: Commit**
+
+```bash
+git add .
+git commit -m "feat: add auth API routes (register, login, logout, me) with middleware and integration tests"
+```
+
+---
+
+## Task 6: Login & Registration Pages (UI)
+
+**Files:**
+- Create: `buddyscript/src/app/login/page.tsx`
+- Create: `buddyscript/src/app/register/page.tsx`
+- Create: `buddyscript/src/components/auth/LoginForm.tsx`
+- Create: `buddyscript/src/components/auth/RegisterForm.tsx`
+
+**Step 1: Convert login.html to LoginForm component**
+
+Extract the form section from the original `login.html` (lines 26-110) into a React Client Component. Preserve all CSS class names and HTML structure exactly. Add:
+- Controlled inputs with `name` and `id` attributes
+- Form submission handler that calls `/api/auth/login`
+- Inline error display with `aria-live="polite"`
+- Disabled button + spinner during submission
+- Link to `/register` page
+
+**Step 2: Convert registration.html to RegisterForm component**
+
+Extract from original `registration.html` (lines 26-115). Same approach. Fix the bugs from original:
+- Button text: "Register now" (not "Login now")
+- Bottom text: "Already have an account? Login" (not "Don't have an account?")
+- Use `type="checkbox"` for terms agreement (not radio)
+- Add `firstName` and `lastName` fields
+
+**Step 3: Create page wrappers**
+
+`buddyscript/src/app/login/page.tsx` and `buddyscript/src/app/register/page.tsx` — server components that render the background shapes + the form component.
+
+**Step 4: Test manually**
+
+- Visit `/login` — verify layout matches original HTML
+- Visit `/register` — verify layout matches original HTML
+- Register a new user — verify redirect to `/feed`
+- Login — verify redirect to `/feed`
+- Invalid credentials — verify error message
+
+**Step 5: Commit**
+
+```bash
+git add .
+git commit -m "feat: add login and registration pages matching original HTML/CSS design"
+```
+
+---
+
+## Task 7: Feed Page Layout & Navbar
+
+**Files:**
+- Create: `buddyscript/src/app/feed/page.tsx`
+- Create: `buddyscript/src/components/layout/Navbar.tsx`
+- Create: `buddyscript/src/components/layout/LeftSidebar.tsx`
+- Create: `buddyscript/src/components/layout/RightSidebar.tsx`
+- Create: `buddyscript/src/components/layout/FeedLayout.tsx`
+- Create: `buddyscript/src/components/ui/DarkModeToggle.tsx`
+
+**Step 1: Create DarkModeToggle component**
+
+Client Component. Extract the switching button from `feed.html` (lines 28-47). Use `localStorage` to persist state. Toggle `_dark_wrapper` class on the layout wrapper.
+
+**Step 2: Create Navbar component**
+
+Extract from `feed.html` (lines 51-549). Convert inline SVGs to React. Include profile dropdown (Client Component for toggle logic). Remove notification dropdown and friend request nav items (out of scope — keep the icons but make them non-functional links).
+
+**Step 3: Create LeftSidebar and RightSidebar**
+
+Extract from `feed.html`. These are mostly static content matching the original design. RightSidebar shows the friends list (static placeholder data from original design).
+
+**Step 4: Create FeedLayout**
+
+3-column layout wrapper matching original `feed.html` structure. Uses the existing `_layout_inner_wrap`, `_layout_left_wrap`, `_layout_middle_wrap`, `_layout_right_wrap` classes.
+
+**Step 5: Create feed page**
+
+`buddyscript/src/app/feed/page.tsx`:
+```tsx
+export const dynamic = 'force-dynamic';
+// Server component that renders FeedLayout with the middle column
+// containing CreatePost and PostFeed components (built in next tasks)
+```
+
+**Step 6: Test manually**
+
+- Visit `/feed` while logged in — verify 3-column layout matches original
+- Verify dark mode toggle works and persists
+- Verify navbar profile dropdown toggles
+- Verify mobile responsive layout
+
+**Step 7: Commit**
+
+```bash
+git add .
+git commit -m "feat: add feed page layout with navbar, sidebars, and dark mode toggle"
+```
+
+---
+
+## Task 8: Posts API Routes
+
+**Files:**
+- Create: `buddyscript/src/app/api/posts/route.ts` (GET feed, POST create)
+- Create: `buddyscript/src/app/api/posts/[id]/route.ts` (GET single, DELETE)
+- Test: `buddyscript/src/__tests__/api/posts.test.ts`
+
+**Step 1: Write integration tests for posts API**
+
+Test: create post, get feed (newest first), private post filtering, delete own post, delete other's post (403), cursor pagination.
+
+**Step 2: Implement GET /api/posts (feed)**
+
+- `requireUser()` guard
+- Cursor-based pagination: `?cursor=createdAt,id&limit=10`
+- Filter: `WHERE (visibility = 'PUBLIC' OR authorId = userId)`
+- Order: `ORDER BY createdAt DESC, id DESC`
+- Include: author info, likeCount, commentCount, whether current user liked it
+- Return: `{ posts: [...], nextCursor: string | null }`
+
+**Step 3: Implement POST /api/posts (create)**
+
+- `requireUser()` guard
+- Validate with `validatePost()`
+- Validate imageUrl against Cloudinary cloud name
+- Create post in DB
+- Return created post with 201
+
+**Step 4: Implement GET /api/posts/:id**
+
+- `requireUser()` guard
+- `requirePostAccess()` check
+- Return post with author info, likeCount, commentCount, current user like status
+
+**Step 5: Implement DELETE /api/posts/:id**
+
+- `requireUser()` guard
+- Verify post belongs to current user (403 if not)
+- Hard delete (CASCADE removes comments and likes)
+- Best-effort Cloudinary image deletion if imageUrl exists
+
+**Step 6: Run tests**
+
+```bash
+npx vitest run src/__tests__/api/posts.test.ts
+```
+
+Expected: All PASS.
+
+**Step 7: Commit**
+
+```bash
+git add .
+git commit -m "feat: add posts API with feed pagination, visibility filtering, CRUD operations"
+```
+
+---
+
+## Task 9: Likes API Routes
+
+**Files:**
+- Create: `buddyscript/src/app/api/posts/[id]/like/route.ts`
+- Create: `buddyscript/src/app/api/posts/[id]/likes/route.ts`
+- Create: `buddyscript/src/app/api/comments/[id]/like/route.ts`
+- Create: `buddyscript/src/app/api/comments/[id]/likes/route.ts`
+- Test: `buddyscript/src/__tests__/api/likes.test.ts`
+
+**Step 1: Write integration tests**
+
+Test: like post, like again (idempotent 200), unlike, unlike again (idempotent 200), likeCount updates, likes list returns users, like private post by other user (403), like comment, comment like on private post (403).
+
+**Step 2: Implement POST/DELETE /api/posts/:id/like**
+
+- `requireUser()` + `requirePostAccess()`
+- POST: upsert PostLike + increment likeCount in transaction. Return `{ liked: true, likeCount }`.
+- DELETE: find and delete PostLike + decrement likeCount in transaction. Return `{ liked: false, likeCount }`.
+- Idempotent: POST returns 200 if already liked, DELETE returns 200 if not liked.
+
+**Step 3: Implement GET /api/posts/:id/likes**
+
+- `requireUser()` + `requirePostAccess()`
+- Cursor-paginated, limit 50
+- Return `{ users: [{ id, firstName, lastName, avatar }], nextCursor }`
+
+**Step 4: Implement comment like routes (same pattern)**
+
+- Resolve comment → get postId → `requirePostAccess()`
+- Same create/delete/list pattern as post likes but on CommentLike table
+
+**Step 5: Run tests**
+
+```bash
+npx vitest run src/__tests__/api/likes.test.ts
+```
+
+Expected: All PASS.
+
+**Step 6: Commit**
+
+```bash
+git add .
+git commit -m "feat: add like/unlike API for posts and comments with idempotency and counter updates"
+```
+
+---
+
+## Task 10: Comments API Routes
+
+**Files:**
+- Create: `buddyscript/src/app/api/posts/[id]/comments/route.ts`
+- Create: `buddyscript/src/app/api/comments/[id]/route.ts`
+- Create: `buddyscript/src/app/api/comments/[id]/replies/route.ts`
+- Test: `buddyscript/src/__tests__/api/comments.test.ts`
+
+**Step 1: Write integration tests**
+
+Test: create comment, create reply, reply-to-reply rejected (400), cross-post reply rejected (400), get paginated comments with inline replies, get paginated replies for a comment, soft delete comment, commentCount updates, comment on private post by other user (403).
+
+**Step 2: Implement GET /api/posts/:id/comments**
+
+- `requireUser()` + `requirePostAccess()`
+- Get top-level comments (parentId = null, deletedAt = null), cursor-paginated, limit 20
+- For each comment, include up to 3 latest replies
+- Include: author info, likeCount, whether current user liked, reply count
+- Soft-deleted comments: include with content replaced by null and `deleted: true` flag
+
+**Step 3: Implement POST /api/posts/:id/comments**
+
+- `requireUser()` + `requirePostAccess()`
+- Validate with `validateComment()`
+- If parentId: verify parent exists, belongs to same post, has no parentId itself (2-level threading)
+- Create comment + increment post's commentCount in transaction
+- Return created comment with 201
+
+**Step 4: Implement GET /api/comments/:id/replies**
+
+- `requireUser()`, resolve comment → `requirePostAccess()`
+- Cursor-paginated, limit 20
+- Same include pattern as comments
+
+**Step 5: Implement DELETE /api/comments/:id**
+
+- `requireUser()`, resolve comment → `requirePostAccess()`
+- Verify comment belongs to current user
+- Soft delete: set `deletedAt` to now
+- Decrement post's commentCount in transaction
+
+**Step 6: Run tests**
+
+```bash
+npx vitest run src/__tests__/api/comments.test.ts
+```
+
+Expected: All PASS.
+
+**Step 7: Commit**
+
+```bash
+git add .
+git commit -m "feat: add comments API with nested replies, soft delete, 2-level threading enforcement"
+```
+
+---
+
+## Task 11: Image Upload API
+
+**Files:**
+- Create: `buddyscript/src/app/api/upload/signature/route.ts`
+- Test: `buddyscript/src/__tests__/api/upload.test.ts`
+
+**Step 1: Write integration test**
+
+Test: authenticated user gets signed params, unauthenticated user gets 401, params contain required fields (timestamp, signature, api_key).
+
+**Step 2: Implement POST /api/upload/signature**
+
+```ts
+import { NextResponse } from 'next/server';
+import { requireUser } from '@/lib/auth';
+import { v2 as cloudinary } from 'cloudinary';
+
+export async function POST(request: Request) {
+  await requireUser(request);
+
+  const timestamp = Math.round(new Date().getTime() / 1000);
+  const signature = cloudinary.utils.api_sign_request(
+    { timestamp, folder: 'buddyscript', allowed_formats: 'jpg,png,gif,webp', max_file_size: 5242880 },
+    process.env.CLOUDINARY_API_SECRET!
+  );
+
+  return NextResponse.json({
+    timestamp,
+    signature,
+    apiKey: process.env.CLOUDINARY_API_KEY,
+    cloudName: process.env.NEXT_PUBLIC_CLOUDINARY_CLOUD_NAME,
+    folder: 'buddyscript',
+  });
+}
+```
+
+**Step 3: Run tests**
+
+```bash
+npx vitest run src/__tests__/api/upload.test.ts
+```
+
+**Step 4: Commit**
+
+```bash
+git add .
+git commit -m "feat: add Cloudinary signed upload endpoint"
+```
+
+---
+
+## Task 12: CreatePost Component
+
+**Files:**
+- Create: `buddyscript/src/components/feed/CreatePost.tsx`
+
+**Step 1: Build CreatePost Client Component**
+
+- Extract the post creation area from `feed.html` (lines 984-998 area)
+- Preserve all CSS classes
+- Controlled textarea
+- Image upload button → file picker → validate MIME/size client-side → get signature → upload to Cloudinary → show preview
+- Visibility toggle (PUBLIC/PRIVATE) — add a dropdown/toggle within the existing design's button area
+- Upload progress indicator
+- Submit → POST `/api/posts` → prepend new post to feed (via callback prop or context)
+- Disabled submit button during flight
+
+**Step 2: Test manually + E2E**
+
+- Create text post → appears in feed
+- Create image post → image displayed
+- Create private post → verify via API
+
+**Step 3: Commit**
+
+```bash
+git add .
+git commit -m "feat: add CreatePost component with image upload and visibility toggle"
+```
+
+---
+
+## Task 13: PostCard & PostFeed Components
+
+**Files:**
+- Create: `buddyscript/src/components/feed/PostCard.tsx`
+- Create: `buddyscript/src/components/feed/PostFeed.tsx`
+- Create: `buddyscript/src/components/feed/LikeButton.tsx`
+- Create: `buddyscript/src/components/feed/LikesList.tsx`
+- Create: `buddyscript/src/hooks/useInfiniteScroll.ts`
+
+**Step 1: Build PostCard component**
+
+- Extract the post card structure from `feed.html` timeline section
+- Display: author name/avatar, timestamp, content, image, likeCount, commentCount
+- LikeButton: optimistic toggle (POST/DELETE), shows filled/unfilled state
+- LikesList: click on like count → modal/popover with paginated user list, `role="dialog"`, focus trap, Escape to close
+- Comment toggle: click comment icon → expand CommentSection (built in next task)
+- Delete button (own posts only): confirm → DELETE → remove from feed
+
+**Step 2: Build PostFeed component**
+
+- Client Component
+- Fetches initial posts from `/api/posts`
+- Infinite scroll via `useInfiniteScroll` hook (Intersection Observer on sentinel div)
+- Handles loading skeleton, empty state, error state
+- Prepends new posts from CreatePost
+
+**Step 3: Build useInfiniteScroll hook**
+
+```ts
+// Watches a ref element via IntersectionObserver
+// Calls loadMore() when sentinel enters viewport
+// Returns { sentinelRef, isLoading, hasMore }
+```
+
+**Step 4: Test with E2E**
+
+- Feed loads posts newest first
+- Scroll to bottom → more posts load
+- Like/unlike → count updates
+- Click like count → see who liked
+
+**Step 5: Commit**
+
+```bash
+git add .
+git commit -m "feat: add PostCard, PostFeed with infinite scroll, LikeButton with optimistic UI, LikesList modal"
+```
+
+---
+
+## Task 14: CommentSection Components
+
+**Files:**
+- Create: `buddyscript/src/components/feed/CommentSection.tsx`
+- Create: `buddyscript/src/components/feed/CommentCard.tsx`
+- Create: `buddyscript/src/components/feed/ReplyCard.tsx`
+
+**Step 1: Build CommentSection**
+
+- Client Component, receives postId
+- Fetches comments from `/api/posts/:id/comments`
+- Shows list of CommentCards
+- Comment input form at bottom
+- Submit → POST `/api/posts/:id/comments` → append to list
+- Focus returns to input after submit
+
+**Step 2: Build CommentCard**
+
+- Displays: author, content, timestamp, likeCount, LikeButton
+- "Reply" button → shows inline reply input
+- Reply submit → POST with parentId
+- Shows up to 3 replies inline (ReplyCards)
+- "Load more replies" button → fetches from `/api/comments/:id/replies`
+- Soft-deleted comments: show "This comment has been deleted" placeholder
+- Delete button (own comments only)
+
+**Step 3: Build ReplyCard**
+
+- Same as CommentCard but visually indented, no nested replies
+- LikeButton for replies
+
+**Step 4: Test with E2E**
+
+- Add comment → appears under post
+- Reply to comment → appears nested
+- Like comment → count updates
+- Delete own comment → shows deleted placeholder
+- Load more replies
+
+**Step 5: Commit**
+
+```bash
+git add .
+git commit -m "feat: add CommentSection with threaded replies, like/unlike, soft delete"
+```
+
+---
+
+## Task 15: E2E Tests with Playwright
+
+**Files:**
+- Create: `buddyscript/playwright.config.ts`
+- Create: `buddyscript/e2e/auth.spec.ts`
+- Create: `buddyscript/e2e/feed.spec.ts`
+- Create: `buddyscript/e2e/interactions.spec.ts`
+
+**Step 1: Configure Playwright**
+
+```bash
+npx playwright install chromium
+```
+
+`buddyscript/playwright.config.ts`:
+```ts
+import { defineConfig } from '@playwright/test';
+
+export default defineConfig({
+  testDir: './e2e',
+  use: {
+    baseURL: 'http://localhost:3000',
+    trace: 'on-first-retry',
+  },
+  webServer: {
+    command: 'npm run dev',
+    port: 3000,
+    reuseExistingServer: true,
+  },
+});
+```
+
+**Step 2: Write auth E2E tests**
+
+`e2e/auth.spec.ts`: Register, login, protected route redirect, already-logged-in redirect, invalid credentials error.
+
+**Step 3: Write feed E2E tests**
+
+`e2e/feed.spec.ts`: Create text post, create image post, private post visibility (2 browser contexts), infinite scroll.
+
+**Step 4: Write interaction E2E tests**
+
+`e2e/interactions.spec.ts`: Like/unlike, likes list modal, comment, reply, delete post, delete comment, dark mode toggle + persistence.
+
+**Step 5: Run all E2E tests**
+
+```bash
+npx playwright test
+```
+
+Expected: All PASS.
+
+**Step 6: Commit**
+
+```bash
+git add .
+git commit -m "feat: add Playwright E2E tests for auth, feed, and interaction flows"
+```
+
+---
+
+## Task 16: Seed Data
+
+**Files:**
+- Create: `buddyscript/prisma/seed.ts`
+- Modify: `buddyscript/package.json` (add prisma seed script)
+
+**Step 1: Create seed script**
+
+`buddyscript/prisma/seed.ts`:
+- Create 3 demo users (with hashed passwords)
+- Create 15-20 posts (mix of public/private, some with images from Cloudinary sample assets)
+- Create comments and replies on various posts
+- Create likes on posts and comments
+- Update denormalized counters
+
+**Step 2: Add to package.json**
+
+```json
+{
+  "prisma": {
+    "seed": "npx tsx prisma/seed.ts"
+  }
+}
+```
+
+**Step 3: Run seed**
+
+```bash
+npx prisma db seed
+```
+
+**Step 4: Verify in browser**
+
+Visit `/feed` — see populated feed with posts, comments, likes.
+
+**Step 5: Commit**
+
+```bash
+git add .
+git commit -m "feat: add seed data with demo users, posts, comments, and likes"
+```
+
+---
+
+## Task 17: GitHub Actions CI
+
+**Files:**
+- Create: `buddyscript/.github/workflows/ci.yml`
+
+**Step 1: Create CI workflow**
+
+```yaml
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+jobs:
+  ci:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: 'npm'
+          cache-dependency-path: buddyscript/package-lock.json
+      - run: npm ci
+        working-directory: buddyscript
+      - run: npx eslint .
+        working-directory: buddyscript
+      - run: npx tsc --noEmit
+        working-directory: buddyscript
+      - run: npx vitest run
+        working-directory: buddyscript
+      - run: npx next build
+        working-directory: buddyscript
+        env:
+          DATABASE_URL: ${{ secrets.DATABASE_URL }}
+          JWT_SECRET: ${{ secrets.JWT_SECRET }}
+          NEXT_PUBLIC_CLOUDINARY_CLOUD_NAME: ${{ secrets.NEXT_PUBLIC_CLOUDINARY_CLOUD_NAME }}
+          CLOUDINARY_API_KEY: ${{ secrets.CLOUDINARY_API_KEY }}
+          CLOUDINARY_API_SECRET: ${{ secrets.CLOUDINARY_API_SECRET }}
+          UPSTASH_REDIS_REST_URL: ${{ secrets.UPSTASH_REDIS_REST_URL }}
+          UPSTASH_REDIS_REST_TOKEN: ${{ secrets.UPSTASH_REDIS_REST_TOKEN }}
+```
+
+**Step 2: Commit**
+
+```bash
+git add .
+git commit -m "feat: add GitHub Actions CI pipeline with lint, typecheck, test, build"
+```
+
+---
+
+## Task 18: Deployment & README
+
+**Files:**
+- Create: `buddyscript/README.md`
+- Modify: Vercel project configuration
+
+**Step 1: Deploy to Vercel**
+
+- Connect GitHub repo to Vercel
+- Set root directory to `buddyscript`
+- Configure all environment variables in Vercel dashboard
+- Run `prisma migrate deploy` on production database
+- Run seed on production database
+
+**Step 2: Write README.md**
+
+Include: project overview, live URL, tech stack, architecture decisions, setup instructions, env vars, DB setup, running locally, running tests, scale considerations, demo credentials.
+
+**Step 3: Final verification**
+
+- Visit live URL — test all features
+- Run full E2E test suite against production URL
+- Verify all pages match original design
+
+**Step 4: Commit**
+
+```bash
+git add .
+git commit -m "docs: add comprehensive README with setup, architecture, and deployment guide"
+```
+
+---
+
+## Task Summary
+
+| Task | Description | Depends On |
+|------|-------------|------------|
+| 1 | Project scaffolding & config | — |
+| 2 | Copy CSS assets & styling | 1 |
+| 3 | Prisma schema & DB setup | 1 |
+| 4 | Auth helpers & utilities (with tests) | 1 |
+| 5 | Auth API routes (with tests) | 3, 4 |
+| 6 | Login & Registration pages (UI) | 2, 5 |
+| 7 | Feed page layout & navbar | 2, 5 |
+| 8 | Posts API routes (with tests) | 3, 4 |
+| 9 | Likes API routes (with tests) | 3, 4 |
+| 10 | Comments API routes (with tests) | 3, 4 |
+| 11 | Image upload API | 4 |
+| 12 | CreatePost component | 7, 8, 11 |
+| 13 | PostCard & PostFeed components | 7, 8, 9 |
+| 14 | CommentSection components | 13, 10 |
+| 15 | E2E tests with Playwright | 6, 12, 13, 14 |
+| 16 | Seed data | 3 |
+| 17 | GitHub Actions CI | 15 |
+| 18 | Deployment & README | All |
+
+**Parallelizable groups:**
+- Tasks 2, 3, 4 can run in parallel after Task 1
+- Tasks 8, 9, 10, 11 can run in parallel after Tasks 3, 4
+- Tasks 6, 7 can run in parallel after Tasks 2, 5
+- Tasks 12, 13 can start once their deps are done
