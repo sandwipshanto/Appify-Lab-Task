@@ -43,6 +43,8 @@
 - `createdAt` — DateTime, indexed
 - `updatedAt` — DateTime
 - **Composite index:** `(createdAt DESC, id DESC)` for cursor-based feed pagination
+- **Composite index:** `(visibility, createdAt DESC, id DESC)` for public posts feed query
+- **Composite index:** `(authorId, visibility, createdAt DESC, id DESC)` for own private posts feed query
 
 ### Comment
 - `id` — UUID, PK
@@ -266,7 +268,10 @@ The task requires sticking to the provided HTML/CSS design exactly. To ensure th
 - **Page size:** 10 posts per request
 - **Infinite scroll:** Intersection Observer on sentinel div at bottom of feed
 - **Custom hook:** `useInfiniteScroll` watches sentinel, triggers next fetch
-- **Feed query filters:** `WHERE (visibility = 'PUBLIC' OR authorId = currentUserId) AND (createdAt, id) < cursor`
+- **Feed query strategy (two-query merge for scale):** Instead of a single `WHERE (visibility = 'PUBLIC' OR authorId = currentUserId)` which performs poorly at millions of rows, execute two parallel indexed queries:
+  1. Public posts: `WHERE visibility = 'PUBLIC' AND (createdAt, id) < cursor ORDER BY createdAt DESC, id DESC LIMIT pageSize`
+  2. Own private posts: `WHERE authorId = currentUserId AND visibility = 'PRIVATE' AND (createdAt, id) < cursor ORDER BY createdAt DESC, id DESC LIMIT pageSize`
+  Merge in application code, sort, take top `pageSize`, derive next cursor from last item.
 
 ---
 

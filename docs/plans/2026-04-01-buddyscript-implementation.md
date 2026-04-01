@@ -35,7 +35,7 @@ npx create-next-app@14 buddyscript --typescript --eslint --app --src-dir --no-ta
 ```bash
 cd buddyscript
 npm install prisma @prisma/client bcryptjs jose @upstash/ratelimit @upstash/redis cloudinary
-npm install -D @types/bcryptjs vitest @vitejs/plugin-react @playwright/test
+npm install -D @types/bcryptjs vitest @vitejs/plugin-react @playwright/test tsx
 ```
 
 **Step 3: Configure TypeScript strict mode**
@@ -84,7 +84,7 @@ const nextConfig = {
           { key: 'Referrer-Policy', value: 'strict-origin-when-cross-origin' },
           {
             key: 'Content-Security-Policy',
-            value: "default-src 'self'; script-src 'self' 'unsafe-inline' 'unsafe-eval'; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src 'self' https://fonts.gstatic.com; img-src 'self' https://res.cloudinary.com data:; connect-src 'self' https://api.cloudinary.com;",
+            value: "default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src 'self' https://fonts.gstatic.com; img-src 'self' https://res.cloudinary.com data:; connect-src 'self' https://api.cloudinary.com;",
           },
         ],
       },
@@ -129,7 +129,41 @@ export function validateEnv() {
 }
 ```
 
-**Step 8: Commit**
+Wire it into app startup — call `validateEnv()` at the top of `src/app/layout.tsx` (server component, runs once on startup):
+```ts
+import { validateEnv } from '@/lib/env';
+validateEnv();
+```
+
+**Step 8: Setup Playwright early**
+
+Playwright must be available from the first UI task so agents can verify with E2E tests immediately.
+
+```bash
+npx playwright install chromium
+```
+
+Create `buddyscript/playwright.config.ts`:
+```ts
+import { defineConfig } from '@playwright/test';
+
+export default defineConfig({
+  testDir: './e2e',
+  use: {
+    baseURL: 'http://localhost:3000',
+    trace: 'on-first-retry',
+  },
+  webServer: {
+    command: 'npm run dev',
+    port: 3000,
+    reuseExistingServer: true,
+  },
+});
+```
+
+Create `buddyscript/e2e/.gitkeep` so the directory exists.
+
+**Step 9: Commit**
 
 ```bash
 git add .
@@ -266,6 +300,8 @@ model Post {
 
   @@index([authorId])
   @@index([createdAt(sort: Desc), id(sort: Desc)])
+  @@index([authorId, visibility, createdAt(sort: Desc), id(sort: Desc)])
+  @@index([visibility, createdAt(sort: Desc), id(sort: Desc)])
 }
 
 model Comment {
@@ -636,6 +672,8 @@ export function validatePost(input: {
   return { success: true, data: { content: content || '', visibility: visibility as 'PUBLIC' | 'PRIVATE', imageUrl } };
 }
 
+const UUID_REGEX = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
 export function validateComment(input: {
   content: string;
   parentId?: string;
@@ -645,6 +683,7 @@ export function validateComment(input: {
 
   if (!content || content.length < 1) errors.content = 'Comment cannot be empty';
   if (content && content.length > 2000) errors.content = 'Comment max 2000 characters';
+  if (input.parentId && !UUID_REGEX.test(input.parentId)) errors.parentId = 'Invalid parent comment ID';
 
   if (Object.keys(errors).length > 0) return { success: false, errors };
   return { success: true, data: { content, parentId: input.parentId } };
@@ -899,6 +938,7 @@ export async function POST(request: Request) {
   const user = await prisma.user.findUnique({ where: { email } });
 
   if (!user || !(await comparePassword(password, user.password))) {
+    console.error(`[AUTH] Failed login attempt for email: ${email} from IP: ${ip}`);
     return NextResponse.json({ error: 'Invalid email or password' }, { status: 401 });
   }
 
@@ -1033,25 +1073,40 @@ Extract from original `registration.html` (lines 26-115). Same approach. Fix the
 - Button text: "Register now" (not "Login now")
 - Bottom text: "Already have an account? Login" (not "Don't have an account?")
 - Use `type="checkbox"` for terms agreement (not radio)
-- Add `firstName` and `lastName` fields
+
+**Required functional additions (not in original HTML but required by task):**
+- Add `firstName` and `lastName` fields: insert two new `_social_registration_form_input` divs above the existing Email field, reusing the exact same class structure (`_social_registration_form_input`, `_social_registration_label`, `_social_registration_input`, `_mar_b14`, `_mar_b8`). This preserves visual consistency using existing CSS.
+- These are the ONLY additions to the registration page markup.
 
 **Step 3: Create page wrappers**
 
 `buddyscript/src/app/login/page.tsx` and `buddyscript/src/app/register/page.tsx` — server components that render the background shapes + the form component.
 
-**Step 4: Test manually**
+**Step 4: Write E2E tests for auth pages**
 
-- Visit `/login` — verify layout matches original HTML
-- Visit `/register` — verify layout matches original HTML
-- Register a new user — verify redirect to `/feed`
-- Login — verify redirect to `/feed`
-- Invalid credentials — verify error message
+Create `buddyscript/e2e/auth.spec.ts`:
+- Visit `/login` — verify form elements visible, layout matches original
+- Visit `/register` — verify form elements visible, layout matches original
+- Register a new user → verify redirect to `/feed` (will show empty feed page placeholder until Task 7)
+- Login with valid credentials → verify redirect
+- Login with invalid credentials → verify inline error message, no redirect
+- Visit `/login` while logged in → verify redirect to `/feed`
+- Visit `/feed` without auth → verify redirect to `/login`
+- Take screenshots of `/login` and `/register` for visual comparison
 
-**Step 5: Commit**
+**Step 5: Run E2E tests**
+
+```bash
+npx playwright test e2e/auth.spec.ts
+```
+
+Expected: All PASS.
+
+**Step 6: Commit**
 
 ```bash
 git add .
-git commit -m "feat: add login and registration pages matching original HTML/CSS design"
+git commit -m "feat: add login and registration pages with E2E tests matching original design"
 ```
 
 ---
@@ -1066,13 +1121,13 @@ git commit -m "feat: add login and registration pages matching original HTML/CSS
 - Create: `buddyscript/src/components/layout/FeedLayout.tsx`
 - Create: `buddyscript/src/components/ui/DarkModeToggle.tsx`
 
-**Step 1: Create DarkModeToggle component**
+**Step 1: Create DarkModeToggle component** *(LOW PRIORITY — skip if behind schedule)*
 
-Client Component. Extract the switching button from `feed.html` (lines 28-47). Use `localStorage` to persist state. Toggle `_dark_wrapper` class on the layout wrapper.
+The dark mode toggle exists in the provided HTML/CSS design (`feed.html` lines 28-47, `custom.js` lines 1-14, `_dark_wrapper` class in CSS). Since we must stick to the provided design, we preserve it. Client Component. Use `localStorage` to persist state. Toggle `_dark_wrapper` class on the layout wrapper.
 
 **Step 2: Create Navbar component**
 
-Extract from `feed.html` (lines 51-549). Convert inline SVGs to React. Include profile dropdown (Client Component for toggle logic). Remove notification dropdown and friend request nav items (out of scope — keep the icons but make them non-functional links).
+Extract from `feed.html` (lines 51-549). Convert inline SVGs to React. Include profile dropdown (Client Component for toggle logic). **Keep all original markup intact including notification and friend request nav items** — make them inert (links go to `#` or are non-functional) but preserve the DOM/class structure exactly. Do NOT remove HTML elements from the original design.
 
 **Step 3: Create LeftSidebar and RightSidebar**
 
@@ -1091,18 +1146,28 @@ export const dynamic = 'force-dynamic';
 // containing CreatePost and PostFeed components (built in next tasks)
 ```
 
-**Step 6: Test manually**
+**Step 6: Write E2E tests for feed layout**
 
-- Visit `/feed` while logged in — verify 3-column layout matches original
-- Verify dark mode toggle works and persists
-- Verify navbar profile dropdown toggles
-- Verify mobile responsive layout
+Create `buddyscript/e2e/feed-layout.spec.ts`:
+- Visit `/feed` while logged in — verify 3-column layout visible
+- Verify dark mode toggle works and class persists after reload (check localStorage)
+- Verify navbar profile dropdown toggles open/close
+- Take screenshot of `/feed` for visual comparison with original design
+- Verify all original nav items are present in DOM (even if inert)
 
-**Step 7: Commit**
+**Step 7: Run E2E tests**
+
+```bash
+npx playwright test e2e/feed-layout.spec.ts
+```
+
+Expected: All PASS.
+
+**Step 8: Commit**
 
 ```bash
 git add .
-git commit -m "feat: add feed page layout with navbar, sidebars, and dark mode toggle"
+git commit -m "feat: add feed page layout with navbar, sidebars, dark mode toggle, and E2E tests"
 ```
 
 ---
@@ -1116,13 +1181,16 @@ git commit -m "feat: add feed page layout with navbar, sidebars, and dark mode t
 
 **Step 1: Write integration tests for posts API**
 
-Test: create post, get feed (newest first), private post filtering, delete own post, delete other's post (403), cursor pagination.
+Test: create post, get feed (newest first), private post filtering, get single post (includes comments), get private post as other user (403), delete own post, delete other's post (403), cursor pagination.
 
 **Step 2: Implement GET /api/posts (feed)**
 
 - `requireUser()` guard
 - Cursor-based pagination: `?cursor=createdAt,id&limit=10`
-- Filter: `WHERE (visibility = 'PUBLIC' OR authorId = userId)`
+- **Two-query merge strategy for scale:** Instead of `WHERE (visibility = 'PUBLIC' OR authorId = userId)` which can't use a single index efficiently at millions of rows, execute two parallel queries and merge:
+  1. `SELECT * FROM Post WHERE visibility = 'PUBLIC' ORDER BY createdAt DESC, id DESC LIMIT 10` (uses the existing composite index)
+  2. `SELECT * FROM Post WHERE authorId = userId AND visibility = 'PRIVATE' ORDER BY createdAt DESC, id DESC LIMIT 10` (uses authorId index)
+  Then merge both result sets in application code, sort by (createdAt DESC, id DESC), take top 10, derive cursor from last item. This ensures both queries use indexes efficiently at any scale.
 - Order: `ORDER BY createdAt DESC, id DESC`
 - Include: author info, likeCount, commentCount, whether current user liked it
 - Return: `{ posts: [...], nextCursor: string | null }`
@@ -1140,6 +1208,8 @@ Test: create post, get feed (newest first), private post filtering, delete own p
 - `requireUser()` guard
 - `requirePostAccess()` check
 - Return post with author info, likeCount, commentCount, current user like status
+- Include first page of top-level comments (limit 20) with up to 3 replies each (same shape as GET /api/posts/:id/comments)
+- This provides a complete single-post view in one request
 
 **Step 5: Implement DELETE /api/posts/:id**
 
@@ -1228,10 +1298,10 @@ Test: create comment, create reply, reply-to-reply rejected (400), cross-post re
 **Step 2: Implement GET /api/posts/:id/comments**
 
 - `requireUser()` + `requirePostAccess()`
-- Get top-level comments (parentId = null, deletedAt = null), cursor-paginated, limit 20
-- For each comment, include up to 3 latest replies
+- Get top-level comments (parentId = null), cursor-paginated, limit 20. **Do NOT filter by deletedAt** — include all top-level comments.
+- For soft-deleted comments: replace `content` with null, set `deleted: true` flag. Only hide a deleted top-level comment if ALL its replies are also deleted.
+- For each active comment, include up to 3 latest replies (also including soft-deleted replies as placeholders)
 - Include: author info, likeCount, whether current user liked, reply count
-- Soft-deleted comments: include with content replaced by null and `deleted: true` flag
 
 **Step 3: Implement POST /api/posts/:id/comments**
 
@@ -1292,10 +1362,15 @@ export async function POST(request: Request) {
   await requireUser(request);
 
   const timestamp = Math.round(new Date().getTime() / 1000);
-  const signature = cloudinary.utils.api_sign_request(
-    { timestamp, folder: 'buddyscript', allowed_formats: 'jpg,png,gif,webp', max_file_size: 5242880 },
-    process.env.CLOUDINARY_API_SECRET!
-  );
+  const uploadPreset = 'buddyscript_signed';
+  const params = {
+    timestamp,
+    folder: 'buddyscript',
+    upload_preset: uploadPreset,
+    allowed_formats: 'jpg,png,gif,webp',
+    max_file_size: 5242880,
+  };
+  const signature = cloudinary.utils.api_sign_request(params, process.env.CLOUDINARY_API_SECRET!);
 
   return NextResponse.json({
     timestamp,
@@ -1303,6 +1378,7 @@ export async function POST(request: Request) {
     apiKey: process.env.CLOUDINARY_API_KEY,
     cloudName: process.env.NEXT_PUBLIC_CLOUDINARY_CLOUD_NAME,
     folder: 'buddyscript',
+    uploadPreset,
   });
 }
 ```
@@ -1333,7 +1409,7 @@ git commit -m "feat: add Cloudinary signed upload endpoint"
 - Preserve all CSS classes
 - Controlled textarea
 - Image upload button → file picker → validate MIME/size client-side → get signature → upload to Cloudinary → show preview
-- Visibility toggle (PUBLIC/PRIVATE) — add a dropdown/toggle within the existing design's button area
+- Visibility toggle (PUBLIC/PRIVATE) — add a small select/dropdown next to the existing post action buttons, using the existing `_feed_inner_text_area_bottom` container and reusing `_btn1` / form-control classes from the provided CSS. This is a required functional addition (task requires public/private posts) placed within the existing layout structure.
 - Upload progress indicator
 - Submit → POST `/api/posts` → prepend new post to feed (via callback prop or context)
 - Disabled submit button during flight
@@ -1421,7 +1497,7 @@ git commit -m "feat: add PostCard, PostFeed with infinite scroll, LikeButton wit
 
 **Step 2: Build CommentCard**
 
-- Displays: author, content, timestamp, likeCount, LikeButton
+- Displays: author, content, timestamp, likeCount, LikeButton, LikesList (reuse same component from PostCard — click count to see who liked)
 - "Reply" button → shows inline reply input
 - Reply submit → POST with parentId
 - Shows up to 3 replies inline (ReplyCards)
@@ -1432,7 +1508,7 @@ git commit -m "feat: add PostCard, PostFeed with infinite scroll, LikeButton wit
 **Step 3: Build ReplyCard**
 
 - Same as CommentCard but visually indented, no nested replies
-- LikeButton for replies
+- LikeButton + LikesList for replies (reuse same components — "show who liked" is required for posts, comments, AND replies per task requirements)
 
 **Step 4: Test with E2E**
 
@@ -1451,51 +1527,47 @@ git commit -m "feat: add CommentSection with threaded replies, like/unlike, soft
 
 ---
 
-## Task 15: E2E Tests with Playwright
+## Task 15: Full E2E Test Suite & Visual Verification
+
+Playwright config and basic auth E2E tests already exist from Tasks 1, 6, and 7. This task adds comprehensive interaction tests and visual verification.
 
 **Files:**
-- Create: `buddyscript/playwright.config.ts`
-- Create: `buddyscript/e2e/auth.spec.ts`
 - Create: `buddyscript/e2e/feed.spec.ts`
 - Create: `buddyscript/e2e/interactions.spec.ts`
+- Create: `buddyscript/e2e/visual.spec.ts`
 
-**Step 1: Configure Playwright**
+**Step 1: Write feed E2E tests**
 
-```bash
-npx playwright install chromium
-```
+`e2e/feed.spec.ts`:
+- Create text-only post → appears at top of feed
+- Create post with image → image displayed
+- Create private post → visible to author, NOT visible to second user (2 browser contexts)
+- Infinite scroll → scroll to bottom, verify more posts load
+- Empty feed state for new user
 
-`buddyscript/playwright.config.ts`:
-```ts
-import { defineConfig } from '@playwright/test';
+**Step 2: Write interaction E2E tests**
 
-export default defineConfig({
-  testDir: './e2e',
-  use: {
-    baseURL: 'http://localhost:3000',
-    trace: 'on-first-retry',
-  },
-  webServer: {
-    command: 'npm run dev',
-    port: 3000,
-    reuseExistingServer: true,
-  },
-});
-```
+`e2e/interactions.spec.ts`:
+- Like a post → count increments, icon fills
+- Unlike a post → count decrements, icon unfills
+- Click likes count on post → modal opens showing users who liked
+- Add comment → appears under post, commentCount increments
+- Reply to comment → appears nested under parent
+- Like a comment → count increments
+- Click likes count on comment → modal opens showing users who liked the comment
+- Delete own post → removed from feed
+- Delete own comment → shows "deleted" placeholder
+- Dark mode toggle → classes applied, persists after reload
 
-**Step 2: Write auth E2E tests**
+**Step 3: Write visual verification tests**
 
-`e2e/auth.spec.ts`: Register, login, protected route redirect, already-logged-in redirect, invalid credentials error.
+`e2e/visual.spec.ts`:
+- Screenshot `/login` page — save to `e2e/screenshots/login.png`
+- Screenshot `/register` page — save to `e2e/screenshots/register.png`
+- Screenshot `/feed` page (with seeded data) — save to `e2e/screenshots/feed.png`
+- Agent compares these against original HTML pages visually
 
-**Step 3: Write feed E2E tests**
-
-`e2e/feed.spec.ts`: Create text post, create image post, private post visibility (2 browser contexts), infinite scroll.
-
-**Step 4: Write interaction E2E tests**
-
-`e2e/interactions.spec.ts`: Like/unlike, likes list modal, comment, reply, delete post, delete comment, dark mode toggle + persistence.
-
-**Step 5: Run all E2E tests**
+**Step 4: Run full E2E suite**
 
 ```bash
 npx playwright test
@@ -1503,11 +1575,11 @@ npx playwright test
 
 Expected: All PASS.
 
-**Step 6: Commit**
+**Step 5: Commit**
 
 ```bash
 git add .
-git commit -m "feat: add Playwright E2E tests for auth, feed, and interaction flows"
+git commit -m "feat: add comprehensive E2E tests for feed, interactions, and visual verification"
 ```
 
 ---
@@ -1590,6 +1662,18 @@ jobs:
         working-directory: buddyscript
       - run: npx vitest run
         working-directory: buddyscript
+      - run: npx playwright install --with-deps chromium
+        working-directory: buddyscript
+      - run: npx playwright test
+        working-directory: buddyscript
+        env:
+          DATABASE_URL: ${{ secrets.DATABASE_URL }}
+          JWT_SECRET: ${{ secrets.JWT_SECRET }}
+          NEXT_PUBLIC_CLOUDINARY_CLOUD_NAME: ${{ secrets.NEXT_PUBLIC_CLOUDINARY_CLOUD_NAME }}
+          CLOUDINARY_API_KEY: ${{ secrets.CLOUDINARY_API_KEY }}
+          CLOUDINARY_API_SECRET: ${{ secrets.CLOUDINARY_API_SECRET }}
+          UPSTASH_REDIS_REST_URL: ${{ secrets.UPSTASH_REDIS_REST_URL }}
+          UPSTASH_REDIS_REST_TOKEN: ${{ secrets.UPSTASH_REDIS_REST_TOKEN }}
       - run: npx next build
         working-directory: buddyscript
         env:
@@ -1627,13 +1711,13 @@ git commit -m "feat: add GitHub Actions CI pipeline with lint, typecheck, test, 
 
 **Step 2: Write README.md**
 
-Include: project overview, live URL, tech stack, architecture decisions, setup instructions, env vars, DB setup, running locally, running tests, scale considerations, demo credentials.
+Include: project overview, live URL, demo credentials, tech stack, architecture decisions (with diagrams if time allows), setup instructions, env vars, DB setup, running locally, running tests, scale considerations, what was built vs what was out of scope.
 
 **Step 3: Final verification**
 
-- Visit live URL — test all features
+- Visit live URL — test all features manually
 - Run full E2E test suite against production URL
-- Verify all pages match original design
+- Verify all pages match original design via screenshots
 
 **Step 4: Commit**
 
@@ -1644,31 +1728,95 @@ git commit -m "docs: add comprehensive README with setup, architecture, and depl
 
 ---
 
+## Task 19: Submission Package (Video + Final Checklist)
+
+This task must be completed BEFORE the deadline.
+
+**Step 1: Pre-submission checklist**
+
+- [ ] All features working on live URL
+- [ ] Demo credentials in README
+- [ ] Seed data visible on production
+- [ ] All tests passing (vitest + playwright)
+- [ ] CI pipeline green on GitHub
+- [ ] No console.log() left in production code (only console.error for auth logging)
+- [ ] .env.example is complete and accurate
+- [ ] No .env or secrets committed to repo
+
+**Step 2: Record video walkthrough**
+
+Record screen capture demonstrating (in order):
+1. Registration flow (fill form, submit, redirect to feed)
+2. Login flow (existing user, redirect to feed)
+3. Creating a text post
+4. Creating a post with image upload
+5. Creating a private post → show it's visible to author
+6. Log in as different user → show private post is NOT visible
+7. Like/unlike a post → show count change
+8. Click like count → show who liked modal
+9. Add a comment on a post
+10. Reply to a comment
+11. Like a comment → show count change
+12. Click like count on comment → show who liked
+13. Delete own comment → show "deleted" placeholder
+14. Delete own post → removed from feed
+15. Dark mode toggle → show it persists on reload
+16. Brief code walkthrough: project structure, Prisma schema, auth implementation, key API routes
+
+**Step 3: Upload video**
+
+- Upload to YouTube as unlisted
+- Add title: "BuddyScript — Full-Stack Social Media App (AppifyLab Task Submission)"
+- Add description with live URL and GitHub repo link
+
+**Step 4: Final README update**
+
+Add video URL and any last-minute notes to README.
+
+**Step 5: Commit and push**
+
+```bash
+git add .
+git commit -m "docs: add video walkthrough link and finalize submission"
+git push origin main
+```
+
+---
+
 ## Task Summary
 
 | Task | Description | Depends On |
 |------|-------------|------------|
-| 1 | Project scaffolding & config | — |
+| 1 | Project scaffolding, config & Playwright setup | — |
 | 2 | Copy CSS assets & styling | 1 |
 | 3 | Prisma schema & DB setup | 1 |
 | 4 | Auth helpers & utilities (with tests) | 1 |
 | 5 | Auth API routes (with tests) | 3, 4 |
-| 6 | Login & Registration pages (UI) | 2, 5 |
-| 7 | Feed page layout & navbar | 2, 5 |
+| 6 | Login & Registration pages (UI + E2E) | 2, 5 |
+| 7 | Feed page layout & navbar (UI + E2E) | 2, 5 |
 | 8 | Posts API routes (with tests) | 3, 4 |
 | 9 | Likes API routes (with tests) | 3, 4 |
 | 10 | Comments API routes (with tests) | 3, 4 |
 | 11 | Image upload API | 4 |
 | 12 | CreatePost component | 7, 8, 11 |
 | 13 | PostCard & PostFeed components | 7, 8, 9 |
-| 14 | CommentSection components | 13, 10 |
-| 15 | E2E tests with Playwright | 6, 12, 13, 14 |
+| 14 | CommentSection components (with LikesList on comments/replies) | 13, 10 |
+| 15 | Full E2E test suite & visual verification | 6, 12, 13, 14 |
 | 16 | Seed data | 3 |
-| 17 | GitHub Actions CI | 15 |
+| 17 | GitHub Actions CI (with Playwright) | 15 |
 | 18 | Deployment & README | All |
+| 19 | Submission package (video + final checklist) | 18 |
 
 **Parallelizable groups:**
 - Tasks 2, 3, 4 can run in parallel after Task 1
 - Tasks 8, 9, 10, 11 can run in parallel after Tasks 3, 4
 - Tasks 6, 7 can run in parallel after Tasks 2, 5
 - Tasks 12, 13 can start once their deps are done
+- Task 16 (seed data) can run anytime after Task 3
+
+**Timeline targets (4 days remaining):**
+- **Day 1 (Apr 2):** Tasks 1-5 — scaffolding, DB, auth backend
+- **Day 2 (Apr 3):** Tasks 6-11 — auth UI, feed layout, all API routes
+- **Day 3 (Apr 4):** Tasks 12-16 — feed UI components, E2E tests, seed data
+- **Day 4 (Apr 5):** Tasks 17-19 — CI, deploy, README, video, submission
+- **Buffer (Apr 6):** Deadline day — final fixes only if needed
