@@ -1998,27 +1998,149 @@ git push origin main
 
 ## Task Summary
 
-| Task | Description | Depends On |
-|------|-------------|------------|
-| 1 | Project scaffolding, config & Playwright setup | — |
-| 2 | Copy CSS assets & styling | 1 |
-| 3 | Prisma schema & DB setup | 1 |
-| 4 | Auth helpers & utilities (with tests) | 1 |
-| 5 | Auth API routes (with tests) | 3, 4 |
-| 6 | Login & Registration pages (UI + E2E) | 2, 5 |
-| 7 | Feed page layout & navbar (UI + E2E) | 2, 5 |
-| 8 | Posts API routes (with tests) | 3, 4 |
-| 9 | Likes API routes (with tests) | 3, 4 |
-| 10 | Comments API routes (with tests) | 3, 4 |
-| 11 | Image upload API | 4 |
-| 12 | CreatePost component | 7, 8, 11 |
-| 13 | PostCard & PostFeed components | 7, 8, 9 |
-| 14 | CommentSection components (with LikesList on comments/replies) | 13, 10 |
-| 15 | Full E2E test suite & visual verification | 6, 12, 13, 14 |
-| 16 | Seed data | 3 |
-| 17 | GitHub Actions CI (with Playwright) | 15 |
-| 18 | Deployment & README | All |
-| 19 | Submission package (video + final checklist) | 18 |
+| Task | Description | Depends On | Checkpoint |
+|------|-------------|------------|------------|
+| 1 | Project scaffolding, config & Playwright setup | — | |
+| 2 | Copy CSS assets & styling | 1 | |
+| 3 | Prisma schema & DB setup | 1 | |
+| 4 | Auth helpers & utilities (with tests) | 1 | |
+| 5 | Auth API routes (with tests) | 3, 4 | **CHECKPOINT 1** |
+| 6 | Login & Registration pages (UI + E2E) | 2, 5 | |
+| 7 | Feed page layout & navbar (UI + E2E) | 2, 5 | **CHECKPOINT 2** |
+| 8 | Posts API routes (with tests) | 3, 4 | |
+| 9 | Likes API routes (with tests) | 3, 4 | |
+| 10 | Comments API routes (with tests) | 3, 4 | |
+| 11 | Image upload API | 4 | **CHECKPOINT 3** |
+| 12 | CreatePost component | 7, 8, 11 | |
+| 13 | PostCard & PostFeed components | 7, 8, 9 | |
+| 14 | CommentSection components (with LikesList on comments/replies) | 13, 10 | **CHECKPOINT 4** |
+| 15 | Full E2E test suite & visual verification | 6, 12, 13, 14 | **CHECKPOINT 5** |
+| 16 | Seed data | 3 | |
+| 17 | GitHub Actions CI (with Playwright) | 15 | |
+| 18 | Deployment & README | All | |
+| 19 | Submission package (video + final checklist) | 18 | **CHECKPOINT 6** |
+
+---
+
+## Checkpoints — Manual Testing Gates
+
+Stop at each checkpoint, verify everything listed, and only proceed when satisfied. These are designed so you can test the app yourself at each natural milestone.
+
+### CHECKPOINT 1 — Auth Backend Complete (after Task 5)
+
+**What's ready:** Project scaffolded, DB migrated, auth API fully functional.
+
+**Manual test steps:**
+1. `cd buddyscript && npm run dev`
+2. Test registration: `curl -X POST http://localhost:3000/api/auth/register -H "Content-Type: application/json" -d '{"firstName":"Test","lastName":"User","email":"test@example.com","password":"Test1234"}' -v` → expect 201, `Set-Cookie` header with `token=...`
+3. Test login: `curl -X POST http://localhost:3000/api/auth/login -H "Content-Type: application/json" -d '{"email":"test@example.com","password":"Test1234"}' -v` → expect 200, cookie set
+4. Test /me with cookie: `curl http://localhost:3000/api/auth/me -H "Cookie: token=<paste token>" -v` → expect 200 with user data
+5. Test /me without cookie: `curl http://localhost:3000/api/auth/me -v` → expect 401
+6. Test validation: empty email, short password, duplicate registration → expect 400/409
+7. Verify all Vitest tests pass: `npx vitest run`
+
+**Pass criteria:** All auth endpoints return correct status codes and cookies. Rate limiting works (6th login in 1 min returns 429).
+
+---
+
+### CHECKPOINT 2 — Auth UI + Feed Layout (after Task 7)
+
+**What's ready:** Login/register pages render, auth flow works end-to-end in browser, feed page shows 3-column layout (empty).
+
+**Manual test steps:**
+1. Open `http://localhost:3000/login` — should match the original `login.html` design
+2. Open `http://localhost:3000/register` — should match `registration.html` with added name fields
+3. Register a new user → should redirect to `/feed`
+4. Verify `/feed` shows 3-column layout with navbar, left sidebar, right sidebar
+5. Open `/feed` in incognito (not logged in) → should redirect to `/login`
+6. Open `/login` while logged in → should redirect to `/feed`
+7. Compare login/register pages side-by-side with original HTML files — CSS classes and structure should match
+
+**Pass criteria:** Full auth round-trip works in browser. Pages visually match the provided design. Protected route redirects work.
+
+---
+
+### CHECKPOINT 3 — All API Routes Complete (after Task 11)
+
+**What's ready:** Posts, likes, comments, replies, upload signature — all backend APIs functional.
+
+**Manual test steps (use curl or Postman with auth cookie):**
+1. Create a public post: `POST /api/posts` with `{"content":"Hello world","visibility":"PUBLIC"}` → 201
+2. Create a private post: `POST /api/posts` with `{"content":"Secret","visibility":"PRIVATE"}` → 201
+3. Get feed: `GET /api/posts` → should show public post, private post visible to author
+4. Log in as different user, get feed → private post should NOT appear
+5. Like a post: `POST /api/posts/:id/like` → `{liked: true, likeCount: 1}`
+6. Like again (idempotent): `POST /api/posts/:id/like` → `{liked: true, likeCount: 1}` (no error)
+7. Unlike: `DELETE /api/posts/:id/like` → `{liked: false, likeCount: 0}`
+8. Add a comment: `POST /api/posts/:id/comments` with `{"content":"Nice post!"}`
+9. Reply to comment: `POST /api/posts/:id/comments` with `{"content":"Thanks!","parentId":"<comment_id>"}`
+10. Reply-to-reply (should fail): send parentId of the reply → expect 400
+11. Like a comment: `POST /api/comments/:id/like` → works
+12. Like a reply: `POST /api/comments/:reply_id/like` → works
+13. Get who liked: `GET /api/posts/:id/likes` and `GET /api/comments/:id/likes` → user lists
+14. Get upload signature: `POST /api/upload/signature` → returns timestamp, signature, apiKey
+15. Verify all Vitest tests pass: `npx vitest run`
+
+**Pass criteria:** Every API endpoint returns correct responses. Private post authorization works. Like idempotency works. 2-level threading enforced. All integration tests green.
+
+---
+
+### CHECKPOINT 4 — Full UI Complete (after Task 14)
+
+**What's ready:** Everything works in the browser — create posts, infinite scroll, likes, comments, replies, like lists, image upload.
+
+**Manual test steps:**
+1. Create a text-only post → appears at top of feed immediately
+2. Create a post with image → upload progress shows, image renders in post
+3. Create a private post → visible to you, not to other users
+4. Scroll down → infinite scroll loads more posts
+5. Like a post → count updates, icon fills (optimistic, instant)
+6. Unlike → count decrements
+7. Click like count on a post → modal shows list of users who liked
+8. Add a comment → appears under post, comment count updates
+9. Reply to a comment → appears nested/indented
+10. Like a comment → count updates
+11. Like a reply → count updates
+12. Click like count on a reply → modal shows who liked the reply
+13. Delete own post → disappears from feed
+14. Delete own comment → shows "deleted" placeholder
+15. Test with 2 browser windows (2 different users) — verify private posts are isolated
+
+**Pass criteria:** All required features work visually. No broken UI states. Optimistic updates feel instant. Private/public isolation works.
+
+---
+
+### CHECKPOINT 5 — All Tests Green (after Task 15)
+
+**What's ready:** Full E2E test suite passes, visual screenshots taken.
+
+**Manual test steps:**
+1. Run full Vitest suite: `npx vitest run` → all pass
+2. Run full Playwright suite: `npx playwright test` → all pass
+3. Review screenshots in `e2e/screenshots/` — compare with original HTML pages
+4. Check test count — should cover: auth flows, post CRUD, likes (post + comment + reply), comments/replies, private post isolation, infinite scroll
+
+**Pass criteria:** Zero test failures. Screenshots look correct. No skipped tests.
+
+---
+
+### CHECKPOINT 6 — Submission Ready (after Task 19)
+
+**What's ready:** Deployed, seeded, documented, video recorded.
+
+**Manual test steps:**
+1. Visit live URL → login page loads
+2. Log in with demo credentials from README → feed loads with seeded data
+3. Run through all features on live site (same as Checkpoint 4 steps)
+4. Verify GitHub repo is public and clean (no .env, no node_modules)
+5. Verify README has: project overview, live URL, demo creds, tech stack, architecture decisions, setup instructions
+6. Verify CI pipeline is green on GitHub
+7. Watch your own video walkthrough — does it demonstrate every required feature?
+8. Check video shows: register, login, text post, image post, private post, like/unlike, who liked, comment, reply, reply like, delete post, delete comment, infinite scroll
+
+**Pass criteria:** Live site works. Repo is clean. README is complete. Video covers all features. CI is green. Ready to submit.
+
+---
 
 **Parallelizable groups:**
 - Tasks 2, 3, 4 can run in parallel after Task 1
