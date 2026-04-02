@@ -90,11 +90,14 @@ Convert three provided HTML/CSS pages (Login, Register, Feed) into a React.js/Ne
 - Denormalized likeCount/commentCount on Post and Comment (avoid COUNT queries at scale)
 - Visibility filtering at query level — private posts invisible to non-authors at every endpoint (feed, direct access, likes, comments)
 - Two-layer auth: middleware for UX redirects + `requireUser()` guard on every API route (401/403)
-- Rate limiting on auth endpoints, email normalization, password policy
+- Rate limiting on auth endpoints, post creation, comments, and uploads; email normalization, password policy
+- CSRF protection via Origin header validation on all state-changing API requests
 - Explicit like/unlike (POST/DELETE, not toggle)
 - Image uploads: MIME allowlist, 5MB limit, Cloudinary signed uploads
-- Dark mode preserved from original design, state in localStorage
-- Preserve exact HTML structure and CSS class names from provided design
+- Shared `getFeedPage()` helper using two-query merge strategy — used by both SSR and API for consistency
+- Use denormalized counters (likeCount/commentCount) everywhere — never `_count` on hot paths
+- Dark mode: LOW PRIORITY — implement only after all scoring features are complete
+- Preserve CSS class names from provided design; simplify non-functional UI elements rather than fully converting them
 
 ---
 

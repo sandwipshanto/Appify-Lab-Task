@@ -61,7 +61,7 @@ UPSTASH_REDIS_REST_URL="your-upstash-url"
 UPSTASH_REDIS_REST_TOKEN="your-upstash-token"
 ```
 
-**Step 5: Configure next.config.js with security headers**
+**Step 5: Configure next.config.js with safe baseline security headers**
 
 ```js
 /** @type {import('next').NextConfig} */
@@ -82,10 +82,7 @@ const nextConfig = {
           { key: 'X-Content-Type-Options', value: 'nosniff' },
           { key: 'X-Frame-Options', value: 'DENY' },
           { key: 'Referrer-Policy', value: 'strict-origin-when-cross-origin' },
-          {
-            key: 'Content-Security-Policy',
-            value: "default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src 'self' https://fonts.gstatic.com; img-src 'self' https://res.cloudinary.com data:; connect-src 'self' https://api.cloudinary.com;",
-          },
+          { key: 'Permissions-Policy', value: 'camera=(), microphone=(), geolocation=()' },
         ],
       },
     ];
@@ -94,6 +91,8 @@ const nextConfig = {
 
 module.exports = nextConfig;
 ```
+
+Do **not** add a static `Content-Security-Policy` string with `script-src 'self'` here. In Next.js App Router that can block framework hydration scripts and break the app. If you later add CSP, implement it with nonces/hashes and verify it against the deployed build.
 
 **Step 6: Configure ESLint and Prettier**
 
@@ -782,11 +781,15 @@ git commit -m "feat: add auth helpers (JWT, bcrypt), validators, rate limiting, 
 
 **Step 1: Write integration tests for auth API**
 
+All state-changing integration tests in Tasks 5, 8, 9, 10, and 11 must send `Origin: ORIGIN` so the same-origin CSRF check is exercised in CI instead of being bypassed in tests.
+
 `buddyscript/src/__tests__/api/auth.test.ts`:
 ```ts
-import { describe, it, expect, beforeAll } from 'vitest';
+import { describe, it, expect } from 'vitest';
 
 const BASE_URL = process.env.TEST_BASE_URL || 'http://localhost:3000';
+const ORIGIN = new URL(BASE_URL).origin;
+const JSON_HEADERS = { 'Content-Type': 'application/json', Origin: ORIGIN };
 
 describe('Auth API', () => {
   let authCookie: string;
@@ -794,7 +797,7 @@ describe('Auth API', () => {
   it('registers a new user', async () => {
     const res = await fetch(`${BASE_URL}/api/auth/register`, {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
+      headers: JSON_HEADERS,
       body: JSON.stringify({
         firstName: 'Test', lastName: 'User',
         email: `test-${Date.now()}@example.com`, password: 'Test1234',
@@ -809,12 +812,12 @@ describe('Auth API', () => {
     const email = `dup-${Date.now()}@example.com`;
     await fetch(`${BASE_URL}/api/auth/register`, {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
+      headers: JSON_HEADERS,
       body: JSON.stringify({ firstName: 'A', lastName: 'B', email, password: 'Test1234' }),
     });
     const res = await fetch(`${BASE_URL}/api/auth/register`, {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
+      headers: JSON_HEADERS,
       body: JSON.stringify({ firstName: 'C', lastName: 'D', email, password: 'Test1234' }),
     });
     expect(res.status).toBe(409);
@@ -824,12 +827,12 @@ describe('Auth API', () => {
     const email = `login-${Date.now()}@example.com`;
     await fetch(`${BASE_URL}/api/auth/register`, {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
+      headers: JSON_HEADERS,
       body: JSON.stringify({ firstName: 'A', lastName: 'B', email, password: 'Test1234' }),
     });
     const res = await fetch(`${BASE_URL}/api/auth/login`, {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
+      headers: JSON_HEADERS,
       body: JSON.stringify({ email, password: 'Test1234' }),
     });
     expect(res.status).toBe(200);
@@ -841,12 +844,12 @@ describe('Auth API', () => {
     const email = `wrong-${Date.now()}@example.com`;
     await fetch(`${BASE_URL}/api/auth/register`, {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
+      headers: JSON_HEADERS,
       body: JSON.stringify({ firstName: 'A', lastName: 'B', email, password: 'Test1234' }),
     });
     const res = await fetch(`${BASE_URL}/api/auth/login`, {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
+      headers: JSON_HEADERS,
       body: JSON.stringify({ email, password: 'Wrong123' }),
     });
     expect(res.status).toBe(401);
@@ -872,7 +875,7 @@ describe('Auth API', () => {
   it('clears cookie on logout', async () => {
     const res = await fetch(`${BASE_URL}/api/auth/logout`, {
       method: 'POST',
-      headers: { Cookie: authCookie },
+      headers: { Cookie: authCookie, Origin: ORIGIN },
     });
     expect(res.status).toBe(200);
     const setCookie = res.headers.get('set-cookie') || '';
@@ -1146,19 +1149,19 @@ git commit -m "feat: add login and registration pages with E2E tests matching or
 - Create: `buddyscript/src/components/layout/FeedLayout.tsx`
 - Create: `buddyscript/src/components/ui/DarkModeToggle.tsx`
 
-**Step 1: Create DarkModeToggle component** *(LOW PRIORITY — skip if behind schedule)*
+**Step 1: Create Navbar component**
 
-The dark mode toggle exists in the provided HTML/CSS design (`feed.html` lines 28-47, `custom.js` lines 1-14, `_dark_wrapper` class in CSS). Since we must stick to the provided design, we preserve it. Client Component. Use `localStorage` to persist state. Toggle `_dark_wrapper` class on the layout wrapper.
+Extract from `feed.html` (lines 51-549). Convert inline SVGs to React. Include profile dropdown (Client Component for toggle logic). **Simplify non-essential nav items** — keep the visual structure but remove or simplify inert elements (notification badges, friend request links, search bar) to static non-interactive placeholders. Focus engineering effort on scoring features, not pixel-perfect conversion of non-functional chrome.
 
-**Step 2: Create Navbar component**
+**Step 2: Create LeftSidebar and RightSidebar**
 
-Extract from `feed.html` (lines 51-549). Convert inline SVGs to React. Include profile dropdown (Client Component for toggle logic). **Keep all original markup intact including notification and friend request nav items** — make them inert (links go to `#` or are non-functional) but preserve the DOM/class structure exactly. Do NOT remove HTML elements from the original design.
+Extract from `feed.html`. These are mostly static content. Keep them minimal — the task says "You may ignore most of the design elements — focus only on the main functionality of the feed." Sidebars should look reasonable but don't need full fidelity.
 
-**Step 3: Create LeftSidebar and RightSidebar**
+**Step 3: Create DarkModeToggle component** *(LOW PRIORITY — implement only after all scoring features are complete and tested)*
 
-Extract from `feed.html`. These are mostly static content matching the original design. RightSidebar shows the friends list (static placeholder data from original design).
+The dark mode toggle exists in the provided HTML/CSS design. Client Component. Use `localStorage` to persist state. Toggle `_dark_wrapper` class on the layout wrapper. **Skip this entirely if behind schedule** — it is not a scoring feature.
 
-**Step 4: Create FeedLayout**
+**Step 4: Create FeedLayout** *(CORE — required)*
 
 3-column layout wrapper matching original `feed.html` structure. Uses the existing `_layout_inner_wrap`, `_layout_left_wrap`, `_layout_middle_wrap`, `_layout_right_wrap` classes.
 
@@ -1376,7 +1379,7 @@ git commit -m "feat: add posts API with feed pagination, visibility filtering, C
 
 **Step 1: Write integration tests**
 
-Test: like post, like again (idempotent 200), unlike, unlike again (idempotent 200), likeCount updates, likes list returns users, like private post by other user (403), like comment, comment like on private post (403).
+Test: like post, like again (idempotent 200), unlike, unlike again (idempotent 200), likeCount updates, likes list returns users, like private post by other user (403), like comment, comment like on private post (403), like/unlike soft-deleted comment or reply (409, no counter change).
 
 **Step 2: Implement POST/DELETE /api/posts/:id/like**
 
@@ -1394,6 +1397,8 @@ Test: like post, like again (idempotent 200), unlike, unlike again (idempotent 2
 **Step 4: Implement comment like routes (same pattern)**
 
 - Resolve comment → get postId → `requirePostAccess()`
+- For `POST` / `DELETE`, if `comment.deletedAt` is set, return `409 Conflict` and do not mutate `likeCount`
+- `GET /api/comments/:id/likes` may still return historical likers for deleted comments/replies if the parent post is visible
 - Same create/delete/list pattern as post likes but on CommentLike table
 
 **Step 5: Run tests**
@@ -1430,8 +1435,8 @@ Test: create comment, create reply, reply-to-reply rejected (400), cross-post re
 - `requireUser()` + `requirePostAccess()`
 - Get top-level comments (parentId = null), cursor-paginated, limit 20. **Do NOT filter by deletedAt** — include all top-level comments.
 - For soft-deleted comments: replace `content` with null, set `deleted: true` flag. Only hide a deleted top-level comment if ALL its replies are also deleted.
-- For each active comment, include up to 3 latest replies (also including soft-deleted replies as placeholders)
-- Include: author info, likeCount, whether current user liked, reply count
+- For each top-level comment, fetch up to 4 latest replies ordered newest-first; return the first 3 inline (also including soft-deleted replies as placeholders) and derive `hasMoreReplies` from whether a 4th reply exists
+- Include: author info, likeCount, whether current user liked, `hasMoreReplies`
 
 **Step 3: Implement POST /api/posts/:id/comments**
 
@@ -1701,7 +1706,7 @@ Playwright config and basic auth E2E tests already exist from Tasks 1, 6, and 7.
 - Click likes count on reply → modal opens showing users who liked the reply
 - Delete own post → removed from feed
 - Delete own comment → shows "deleted" placeholder
-- Dark mode toggle → classes applied, persists after reload
+- *(Optional)* Dark mode toggle → classes applied, persists after reload
 
 **Step 3: Write visual verification tests**
 
@@ -1789,7 +1794,7 @@ on:
     branches: [main]
 
 env:
-  DATABASE_URL: ${{ secrets.DATABASE_URL }}
+  DATABASE_URL: ${{ secrets.CI_BUILD_DATABASE_URL }}
   JWT_SECRET: ${{ secrets.JWT_SECRET }}
   NEXT_PUBLIC_CLOUDINARY_CLOUD_NAME: ${{ secrets.NEXT_PUBLIC_CLOUDINARY_CLOUD_NAME }}
   CLOUDINARY_API_KEY: ${{ secrets.CLOUDINARY_API_KEY }}
@@ -1816,6 +1821,8 @@ jobs:
 
   unit-tests:
     runs-on: ubuntu-latest
+    env:
+      DATABASE_URL: ${{ secrets.CI_UNIT_DATABASE_URL }}
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
@@ -1838,6 +1845,8 @@ jobs:
   e2e-tests:
     runs-on: ubuntu-latest
     needs: [lint-and-typecheck]
+    env:
+      DATABASE_URL: ${{ secrets.CI_E2E_DATABASE_URL }}
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
@@ -1885,7 +1894,7 @@ jobs:
 
 > **Note:** Add `wait-on` as a dev dependency in Task 1 Step 2: `npm install -D wait-on`
 
-> **IMPORTANT — CI database isolation:** The `DATABASE_URL` secret in GitHub Actions MUST point to a dedicated, disposable test database (e.g., a separate Neon branch or a throwaway DB), NOT the production database. CI runs `prisma migrate deploy` and `prisma db seed` which will reset/mutate data. Create a separate Neon project or branch specifically for CI and set the secret accordingly.
+> **IMPORTANT — CI database isolation:** `CI_UNIT_DATABASE_URL` and `CI_E2E_DATABASE_URL` MUST point to different dedicated, disposable databases or Neon branches. The jobs run in parallel and both execute `prisma migrate deploy` + `prisma db seed`, so sharing one database will cause flaky CI. `CI_BUILD_DATABASE_URL` must also be non-production, but it can be a separate branch used only to satisfy build-time env validation.
 
 **Step 2: Commit**
 
@@ -1917,7 +1926,7 @@ Include: project overview, live URL, demo credentials, tech stack, architecture 
 **Step 3: Final verification**
 
 - Visit live URL — test all features manually
-- Run full E2E test suite against production URL
+- Run targeted smoke checks against production URL (auth, create post, private visibility, likes). Keep the full destructive E2E suite on local/staging.
 - Verify all pages match original design via screenshots
 
 **Step 4: Commit**
@@ -1963,8 +1972,9 @@ Record screen capture demonstrating (in order):
 14. Click like count on reply → show who liked the reply
 15. Delete own comment → show "deleted" placeholder
 16. Delete own post → removed from feed
-17. Dark mode toggle → show it persists on reload
-18. Brief code walkthrough: project structure, Prisma schema, auth implementation, key API routes
+17. Infinite scroll → scroll to bottom, more posts load
+18. Brief code walkthrough: project structure, Prisma schema, auth implementation, key API routes, two-query feed strategy
+19. *(If implemented)* Dark mode toggle → show it persists on reload
 
 **Step 3: Upload video**
 
@@ -2016,6 +2026,8 @@ git push origin main
 - Tasks 6, 7 can run in parallel after Tasks 2, 5
 - Tasks 12, 13 can start once their deps are done
 - Task 16 (seed data) can run anytime after Task 3
+
+**Priority order:** All scoring features (auth, feed CRUD, likes, comments/replies, reply likes, private/public, "who liked") → testing/CI → deploy/README/video → non-essential polish (dark mode, sidebar fidelity). Never spend time on non-essential polish while any scoring feature is incomplete.
 
 **Timeline targets (4 days remaining):**
 - **Day 1 (Apr 2):** Tasks 1-5 — scaffolding, DB, auth backend

@@ -98,15 +98,15 @@
 ### Likes
 - `POST /api/posts/:id/like` — Like a post (creates PostLike, increments likeCount)
 - `DELETE /api/posts/:id/like` — Unlike a post (deletes PostLike, decrements likeCount)
-- `POST /api/comments/:id/like` — Like a comment
-- `DELETE /api/comments/:id/like` — Unlike a comment
+- `POST /api/comments/:id/like` — Like a comment or reply
+- `DELETE /api/comments/:id/like` — Unlike a comment or reply
 - `GET /api/posts/:id/likes` — List who liked a post (paginated, limit 50, cursor-based)
-- `GET /api/comments/:id/likes` — List who liked a comment (paginated, limit 50, cursor-based)
+- `GET /api/comments/:id/likes` — List who liked a comment or reply (paginated, limit 50, cursor-based)
 
 **Like/unlike uses explicit create/delete (not toggle).** Server always returns the final like state and count so optimistic UI can reconcile. **Idempotency:** POST /like returns 200 with `{liked: true}` if already liked (no error, no duplicate). DELETE /like returns 200 with `{liked: false}` if not currently liked. This makes retries and optimistic rollbacks safe.
 
 ### Comments
-- `GET /api/posts/:id/comments` — Get top-level comments for a post (cursor-paginated, limit 20, each includes up to 3 latest replies inline)
+- `GET /api/posts/:id/comments` — Get top-level comments for a post (cursor-paginated, limit 20, each includes up to 3 latest replies inline plus `hasMoreReplies`)
 - `GET /api/comments/:id/replies` — Get replies for a specific comment (cursor-paginated, limit 20; used for "load more replies")
 - `POST /api/posts/:id/comments` — Add comment or reply. If `parentId` is set, server validates: (a) parent belongs to same postId, (b) parent itself has no parentId (i.e., parent is top-level) — this enforces exactly 2-level threading, rejecting reply-to-reply with 400
 - `DELETE /api/comments/:id` — Soft delete own comment (resolves parent post, checks visibility). See Delete Behavior section below.
@@ -152,13 +152,13 @@
 - **bcrypt** for passwords (not SHA/MD5)
 - **Prisma parameterized queries** — SQL injection prevented
 - **Input validation** on all API routes (reject malformed data early)
-- **CSRF protection** — `sameSite: lax` cookies + `Origin` header validation in middleware on all state-changing API requests (POST/PUT/PATCH/DELETE). Requests without a matching `Origin` header are rejected with 403.
+- **CSRF protection** — `sameSite: lax` cookies + `Origin` header validation on all state-changing API requests (POST/PUT/PATCH/DELETE). Browser requests whose `Origin` does not match the current host are rejected with 403. Integration tests explicitly send `Origin: <BASE_URL origin>` so the same protection is exercised in CI.
 - **Rate limiting** via Upstash Redis (serverless-compatible, works across Vercel function instances): auth endpoints (5 login/min, 3 register/min per IP), post creation (10/min), comments (20/min), uploads (5/min). Uses `@upstash/ratelimit` with sliding window algorithm.
 - **Email normalization** — lowercase, trimmed before storage and lookup
 - **Password policy** — minimum 8 chars, at least one letter and one number
 - **Auth error logging** — log failed login attempts with IP only (no PII such as email in logs)
 - **XSS prevention:** All user-generated content (posts, comments, names) rendered as plain text via React's default escaping. **Never use `dangerouslySetInnerHTML`**. No HTML/markdown parsing of user content.
-- **Security headers** via `next.config.js` headers: `Content-Security-Policy` (restrict scripts to self, restrict styles to self + fonts.googleapis.com), `X-Content-Type-Options: nosniff`, `X-Frame-Options: DENY`, `Referrer-Policy: strict-origin-when-cross-origin`
+- **Security headers** via `next.config.js` headers: `X-Content-Type-Options: nosniff`, `X-Frame-Options: DENY`, `Referrer-Policy: strict-origin-when-cross-origin`, `Permissions-Policy`. Do **not** ship a static `Content-Security-Policy` with `script-src 'self'` in Next.js App Router, because it can block hydration. If CSP is implemented later, it must be nonce/hash-based and verified against the deployed app.
 
 ### Input Validation Rules
 
@@ -219,7 +219,8 @@ All authenticated routes and API endpoints must be fully dynamic — **no static
 ### Deleting a Comment
 - **Soft delete** — set `deletedAt` to current timestamp. The comment remains in DB to preserve reply thread structure.
 - UI shows "This comment has been deleted" placeholder instead of content
-- `likeCount` stays as-is (likes on deleted comments are frozen)
+- `likeCount` stays as-is (likes on deleted comments/replies are frozen)
+- Existing likes remain historical data and may still be listed if the parent post is visible, but new like/unlike mutations on deleted comments/replies return `409 Conflict`
 - Parent post's `commentCount` is decremented by 1 (atomic Prisma transaction)
 - If a top-level comment is soft-deleted and all its replies are also soft-deleted, the entire thread can be hidden in the UI
 
@@ -367,7 +368,7 @@ Tests serve two purposes: (1) AI agents verify their own work after each task, (
 - **Post CRUD:** create public post, create private post, get feed (private post hidden from other user), get own feed (private post visible), delete own post, delete other's post (403)
 - **Like/unlike:** like a post, like again (idempotent 200), unlike, unlike again (idempotent 200), check likeCount updates, check likes list returns correct users
 - **Comments:** create comment, create reply, reply-to-reply rejected (400), cross-post reply rejected (400), delete own comment (soft delete), get paginated comments, get paginated replies
-- **Comment likes:** same like/unlike tests as posts but on comments
+- **Comment likes:** same like/unlike tests as posts but on comments/replies; POST/DELETE on a soft-deleted comment/reply returns 409 and does not change `likeCount`
 - **Private post authorization:** other user cannot like/comment/view likes on private post (403)
 - **Image URL validation:** reject non-Cloudinary URLs (400)
 
@@ -394,11 +395,13 @@ Playwright MCP server enables AI agents to run browser-based verification during
 - Add comment → appears under post, commentCount increments
 - Reply to comment → appears nested under parent
 - Like a comment → count increments
+- Like a reply → count increments
+- Click reply like count → see list of users who liked the reply
 - Delete own post → removed from feed
 - Delete own comment → shows "deleted" placeholder
 
-**Dark mode:**
-- Toggle dark mode → classes applied, persists after page reload
+**Dark mode (optional polish):**
+- If implemented, toggle dark mode → classes applied, persists after page reload
 
 **Visual verification:**
 - Screenshot /login, /register, /feed pages
@@ -457,7 +460,7 @@ After completing each implementation task, agents MUST:
 - Liking/unliking posts and comments
 - Commenting and replying
 - Viewing who liked
-- Dark mode toggle
+- *(If implemented)* Dark mode toggle
 - Code walkthrough: project structure, key files, database schema, auth implementation
 
 ### Documentation
