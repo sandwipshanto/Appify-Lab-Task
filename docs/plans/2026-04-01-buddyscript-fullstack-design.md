@@ -143,7 +143,7 @@
 - Auth routes (/login, /register) -> valid token -> redirect to /feed
 
 **Layer 2: API route guards (authoritative)**
-- Every mutating/protected API route calls `requireUser(request)` helper
+- Every mutating/protected API route calls `requireUser()` helper
 - Returns parsed user from JWT or throws 401
 - This is the real security boundary — middleware is convenience only
 
@@ -152,11 +152,11 @@
 - **bcrypt** for passwords (not SHA/MD5)
 - **Prisma parameterized queries** — SQL injection prevented
 - **Input validation** on all API routes (reject malformed data early)
-- **sameSite: lax** + no GET mutations — CSRF safe
-- **Rate limiting** on auth endpoints via Upstash Redis (serverless-compatible, works across Vercel function instances): 5 login attempts per minute per IP, 3 registration attempts per minute per IP. Uses `@upstash/ratelimit` with sliding window algorithm.
+- **CSRF protection** — `sameSite: lax` cookies + `Origin` header validation in middleware on all state-changing API requests (POST/PUT/PATCH/DELETE). Requests without a matching `Origin` header are rejected with 403.
+- **Rate limiting** via Upstash Redis (serverless-compatible, works across Vercel function instances): auth endpoints (5 login/min, 3 register/min per IP), post creation (10/min), comments (20/min), uploads (5/min). Uses `@upstash/ratelimit` with sliding window algorithm.
 - **Email normalization** — lowercase, trimmed before storage and lookup
 - **Password policy** — minimum 8 chars, at least one letter and one number
-- **Auth error logging** — log failed login attempts (no sensitive data in logs)
+- **Auth error logging** — log failed login attempts with IP only (no PII such as email in logs)
 - **XSS prevention:** All user-generated content (posts, comments, names) rendered as plain text via React's default escaping. **Never use `dangerouslySetInnerHTML`**. No HTML/markdown parsing of user content.
 - **Security headers** via `next.config.js` headers: `Content-Security-Policy` (restrict scripts to self, restrict styles to self + fonts.googleapis.com), `X-Content-Type-Options: nosniff`, `X-Frame-Options: DENY`, `Referrer-Policy: strict-origin-when-cross-origin`
 

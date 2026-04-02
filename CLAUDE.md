@@ -2,7 +2,7 @@
 
 ## Stakes
 
-This project is for a competitive full-stack engineering role (50k-200k BDT/month). 1,000 people applied, 400 shortlisted. **Submission deadline: April 6, 2026.** This is the highest-priority task — every decision must be made as if the developer's career depends on it, because it does.
+This project is for a competitive full-stack engineering role (50k-200k BDT/month). 1,000 people applied, 400 shortlisted.  This is the highest-priority task — every decision must be made as if the developer's career depends on it, because it does.
 
 **Zero tolerance for:**
 - Sloppy code, half-finished features, or placeholder implementations

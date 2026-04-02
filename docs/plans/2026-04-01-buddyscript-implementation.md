@@ -35,7 +35,7 @@ npx create-next-app@14 buddyscript --typescript --eslint --app --src-dir --no-ta
 ```bash
 cd buddyscript
 npm install prisma @prisma/client bcryptjs jose @upstash/ratelimit @upstash/redis cloudinary
-npm install -D @types/bcryptjs vitest @vitejs/plugin-react @playwright/test tsx
+npm install -D @types/bcryptjs vitest @vitejs/plugin-react @playwright/test tsx wait-on
 ```
 
 **Step 3: Configure TypeScript strict mode**
@@ -279,7 +279,7 @@ model User {
   postLikes    PostLike[]
   commentLikes CommentLike[]
 
-  @@index([email])
+  // Note: @unique on email already creates an index, no need for @@index([email])
   @@index([createdAt])
 }
 
@@ -577,11 +577,8 @@ export async function getAuthToken(): Promise<string | undefined> {
   return cookieStore.get(COOKIE_NAME)?.value;
 }
 
-export async function requireUser(request: Request): Promise<{ userId: string }> {
-  const token = request.headers.get('cookie')
-    ?.split(';')
-    .find((c) => c.trim().startsWith(`${COOKIE_NAME}=`))
-    ?.split('=')[1];
+export async function requireUser(): Promise<{ userId: string }> {
+  const token = await getAuthToken();
 
   if (!token) {
     throw new Response(JSON.stringify({ error: 'Unauthorized' }), { status: 401 });
@@ -714,6 +711,24 @@ export const registerRateLimit = new Ratelimit({
   prefix: 'ratelimit:register',
 });
 
+export const createPostRateLimit = new Ratelimit({
+  redis,
+  limiter: Ratelimit.slidingWindow(10, '1 m'),
+  prefix: 'ratelimit:post',
+});
+
+export const commentRateLimit = new Ratelimit({
+  redis,
+  limiter: Ratelimit.slidingWindow(20, '1 m'),
+  prefix: 'ratelimit:comment',
+});
+
+export const uploadRateLimit = new Ratelimit({
+  redis,
+  limiter: Ratelimit.slidingWindow(5, '1 m'),
+  prefix: 'ratelimit:upload',
+});
+
 export function getClientIP(request: Request): string {
   return request.headers.get('x-forwarded-for')?.split(',')[0]?.trim() || 'unknown';
 }
@@ -771,7 +786,7 @@ git commit -m "feat: add auth helpers (JWT, bcrypt), validators, rate limiting, 
 ```ts
 import { describe, it, expect, beforeAll } from 'vitest';
 
-const BASE_URL = 'http://localhost:3000';
+const BASE_URL = process.env.TEST_BASE_URL || 'http://localhost:3000';
 
 describe('Auth API', () => {
   let authCookie: string;
@@ -938,7 +953,7 @@ export async function POST(request: Request) {
   const user = await prisma.user.findUnique({ where: { email } });
 
   if (!user || !(await comparePassword(password, user.password))) {
-    console.error(`[AUTH] Failed login attempt for email: ${email} from IP: ${ip}`);
+    console.error(`[AUTH] Failed login attempt from IP: ${ip}`);
     return NextResponse.json({ error: 'Invalid email or password' }, { status: 401 });
   }
 
@@ -971,7 +986,7 @@ import { prisma } from '@/lib/db';
 
 export async function GET(request: Request) {
   try {
-    const { userId } = await requireUser(request);
+    const { userId } = await requireUser();
     const user = await prisma.user.findUnique({
       where: { id: userId },
       select: { id: true, firstName: true, lastName: true, email: true, avatar: true },
@@ -998,8 +1013,18 @@ const protectedRoutes = ['/feed'];
 const authRoutes = ['/login', '/register'];
 
 export async function middleware(request: NextRequest) {
-  const token = request.cookies.get('token')?.value;
   const { pathname } = request.nextUrl;
+
+  // CSRF protection: validate Origin header on state-changing requests to API routes
+  if (pathname.startsWith('/api/') && ['POST', 'PUT', 'PATCH', 'DELETE'].includes(request.method)) {
+    const origin = request.headers.get('origin');
+    const host = request.headers.get('host');
+    if (!origin || new URL(origin).host !== host) {
+      return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
+    }
+  }
+
+  const token = request.cookies.get('token')?.value;
 
   let isAuthenticated = false;
   if (token) {
@@ -1027,7 +1052,7 @@ export async function middleware(request: NextRequest) {
 }
 
 export const config = {
-  matcher: ['/', '/feed/:path*', '/login', '/register'],
+  matcher: ['/', '/feed/:path*', '/login', '/register', '/api/:path*'],
 };
 ```
 
@@ -1141,9 +1166,29 @@ Extract from `feed.html`. These are mostly static content matching the original 
 
 `buddyscript/src/app/feed/page.tsx`:
 ```tsx
+import { cookies } from 'next/headers';
+import { verifyJWT } from '@/lib/auth';
+import { getFeedPage } from '@/lib/feed';
+import { redirect } from 'next/navigation';
+
 export const dynamic = 'force-dynamic';
-// Server component that renders FeedLayout with the middle column
-// containing CreatePost and PostFeed components (built in next tasks)
+
+// Server component: SSR first page using the same two-query merge strategy as the API.
+// This gives instant content on load, then PostFeed (Client Component) handles infinite scroll.
+export default async function FeedPage() {
+  const token = (await cookies()).get('token')?.value;
+  if (!token) redirect('/login');
+  const { userId } = await verifyJWT(token);
+
+  const { posts, nextCursor: initialCursor } = await getFeedPage(userId, null, 10);
+
+  return (
+    <FeedLayout>
+      <CreatePost userId={userId} />
+      <PostFeed initialPosts={posts} initialCursor={initialCursor} userId={userId} />
+    </FeedLayout>
+  );
+}
 ```
 
 **Step 6: Write E2E tests for feed layout**
@@ -1175,6 +1220,7 @@ git commit -m "feat: add feed page layout with navbar, sidebars, dark mode toggl
 ## Task 8: Posts API Routes
 
 **Files:**
+- Create: `buddyscript/src/lib/feed.ts` (shared two-query feed helper — used by SSR and API)
 - Create: `buddyscript/src/app/api/posts/route.ts` (GET feed, POST create)
 - Create: `buddyscript/src/app/api/posts/[id]/route.ts` (GET single, DELETE)
 - Test: `buddyscript/src/__tests__/api/posts.test.ts`
@@ -1183,21 +1229,105 @@ git commit -m "feat: add feed page layout with navbar, sidebars, dark mode toggl
 
 Test: create post, get feed (newest first), private post filtering, get single post (includes comments), get private post as other user (403), delete own post, delete other's post (403), cursor pagination.
 
-**Step 2: Implement GET /api/posts (feed)**
+**Step 2: Create shared feed query helper**
+
+Create `buddyscript/src/lib/feed.ts` — a single shared implementation of the two-query merge strategy used by both the SSR feed page and the API route. This ensures the scale-critical query logic is defined once and stays consistent:
+
+```ts
+import { prisma } from './db';
+
+const POST_SELECT = (userId: string) => ({
+  id: true,
+  content: true,
+  imageUrl: true,
+  visibility: true,
+  likeCount: true,
+  commentCount: true, // Use denormalized counter — no COUNT() subquery at scale
+  createdAt: true,
+  authorId: true,
+  author: { select: { id: true, firstName: true, lastName: true, avatar: true } },
+  likes: { where: { userId }, select: { id: true } },
+});
+
+/**
+ * Two-query merge strategy for scale:
+ * Instead of WHERE (visibility = 'PUBLIC' OR authorId = userId) which can't
+ * use a single index efficiently at millions of rows, execute two parallel
+ * queries and merge:
+ * 1. Public posts (uses composite index on [visibility, createdAt, id])
+ * 2. User's private posts (uses index on [authorId, createdAt, id])
+ * Then merge, sort, take limit, derive cursor.
+ */
+export async function getFeedPage(
+  userId: string,
+  cursor: string | null,
+  limit: number = 10
+) {
+  const cursorFilter = cursor
+    ? parseCursor(cursor)
+    : undefined;
+
+  const [publicPosts, privatePosts] = await Promise.all([
+    prisma.post.findMany({
+      where: {
+        visibility: 'PUBLIC',
+        ...(cursorFilter && {
+          OR: [
+            { createdAt: { lt: cursorFilter.createdAt } },
+            { createdAt: cursorFilter.createdAt, id: { lt: cursorFilter.id } },
+          ],
+        }),
+      },
+      orderBy: [{ createdAt: 'desc' }, { id: 'desc' }],
+      take: limit,
+      select: POST_SELECT(userId),
+    }),
+    prisma.post.findMany({
+      where: {
+        authorId: userId,
+        visibility: 'PRIVATE',
+        ...(cursorFilter && {
+          OR: [
+            { createdAt: { lt: cursorFilter.createdAt } },
+            { createdAt: cursorFilter.createdAt, id: { lt: cursorFilter.id } },
+          ],
+        }),
+      },
+      orderBy: [{ createdAt: 'desc' }, { id: 'desc' }],
+      take: limit,
+      select: POST_SELECT(userId),
+    }),
+  ]);
+
+  // Merge, deduplicate, sort, take limit
+  const merged = [...publicPosts, ...privatePosts]
+    .sort((a, b) => b.createdAt.getTime() - a.createdAt.getTime() || b.id.localeCompare(a.id))
+    .slice(0, limit);
+
+  const nextCursor = merged.length === limit
+    ? `${merged[merged.length - 1].createdAt.toISOString()}_${merged[merged.length - 1].id}`
+    : null;
+
+  return { posts: merged, nextCursor };
+}
+
+function parseCursor(cursor: string) {
+  const [iso, id] = cursor.split('_');
+  return { createdAt: new Date(iso), id };
+}
+```
+
+**Step 3: Implement GET /api/posts (feed)**
 
 - `requireUser()` guard
-- Cursor-based pagination: `?cursor=createdAt,id&limit=10`
-- **Two-query merge strategy for scale:** Instead of `WHERE (visibility = 'PUBLIC' OR authorId = userId)` which can't use a single index efficiently at millions of rows, execute two parallel queries and merge:
-  1. `SELECT * FROM Post WHERE visibility = 'PUBLIC' ORDER BY createdAt DESC, id DESC LIMIT 10` (uses the existing composite index)
-  2. `SELECT * FROM Post WHERE authorId = userId AND visibility = 'PRIVATE' ORDER BY createdAt DESC, id DESC LIMIT 10` (uses authorId index)
-  Then merge both result sets in application code, sort by (createdAt DESC, id DESC), take top 10, derive cursor from last item. This ensures both queries use indexes efficiently at any scale.
-- Order: `ORDER BY createdAt DESC, id DESC`
-- Include: author info, likeCount, commentCount, whether current user liked it
+- Parse `?cursor=...&limit=10` from query params
+- Call `getFeedPage(userId, cursor, limit)` — the shared helper handles two-query merge, cursor logic, and sorting
 - Return: `{ posts: [...], nextCursor: string | null }`
 
-**Step 3: Implement POST /api/posts (create)**
+**Step 4: Implement POST /api/posts (create)**
 
 - `requireUser()` guard
+- Rate limit with `createPostRateLimit` (10/min per IP)
 - Validate with `validatePost()`
 - Validate imageUrl against Cloudinary cloud name
 - Create post in DB
@@ -1306,6 +1436,7 @@ Test: create comment, create reply, reply-to-reply rejected (400), cross-post re
 **Step 3: Implement POST /api/posts/:id/comments**
 
 - `requireUser()` + `requirePostAccess()`
+- Rate limit with `commentRateLimit` (20/min per IP)
 - Validate with `validateComment()`
 - If parentId: verify parent exists, belongs to same post, has no parentId itself (2-level threading)
 - Create comment + increment post's commentCount in transaction
@@ -1356,10 +1487,18 @@ Test: authenticated user gets signed params, unauthenticated user gets 401, para
 ```ts
 import { NextResponse } from 'next/server';
 import { requireUser } from '@/lib/auth';
+import { uploadRateLimit, getClientIP } from '@/lib/rate-limit';
 import { v2 as cloudinary } from 'cloudinary';
 
 export async function POST(request: Request) {
-  await requireUser(request);
+  await requireUser();
+
+  // Rate limit uploads: 5/min per IP
+  const ip = getClientIP(request);
+  const { success } = await uploadRateLimit.limit(ip);
+  if (!success) {
+    return NextResponse.json({ error: 'Too many uploads. Try again later.' }, { status: 429 });
+  }
 
   const timestamp = Math.round(new Date().getTime() / 1000);
   const uploadPreset = 'buddyscript_signed';
@@ -1449,10 +1588,10 @@ git commit -m "feat: add CreatePost component with image upload and visibility t
 
 **Step 2: Build PostFeed component**
 
-- Client Component
-- Fetches initial posts from `/api/posts`
-- Infinite scroll via `useInfiniteScroll` hook (Intersection Observer on sentinel div)
-- Handles loading skeleton, empty state, error state
+- Client Component that receives `initialPosts` and `initialCursor` props from the server component
+- The feed page (server component) fetches the first page of posts server-side and passes them as props — this gives instant content on load (SSR advantage) and avoids a loading spinner for the initial render
+- After hydration, infinite scroll fetches subsequent pages from `/api/posts` client-side via `useInfiniteScroll` hook (Intersection Observer on sentinel div)
+- Handles empty state, error state, and loading indicator for subsequent pages
 - Prepends new posts from CreatePost
 
 **Step 3: Build useInfiniteScroll hook**
@@ -1515,6 +1654,8 @@ git commit -m "feat: add PostCard, PostFeed with infinite scroll, LikeButton wit
 - Add comment → appears under post
 - Reply to comment → appears nested
 - Like comment → count updates
+- Like reply → count updates (explicitly test reply likes, not just comment likes)
+- Click reply like count → modal shows who liked the reply
 - Delete own comment → shows deleted placeholder
 - Load more replies
 
@@ -1555,6 +1696,9 @@ Playwright config and basic auth E2E tests already exist from Tasks 1, 6, and 7.
 - Reply to comment → appears nested under parent
 - Like a comment → count increments
 - Click likes count on comment → modal opens showing users who liked the comment
+- Like a reply → count increments (separate from comment like test)
+- Unlike a reply → count decrements
+- Click likes count on reply → modal opens showing users who liked the reply
 - Delete own post → removed from feed
 - Delete own comment → shows "deleted" placeholder
 - Dark mode toggle → classes applied, persists after reload
@@ -1644,8 +1788,17 @@ on:
   pull_request:
     branches: [main]
 
+env:
+  DATABASE_URL: ${{ secrets.DATABASE_URL }}
+  JWT_SECRET: ${{ secrets.JWT_SECRET }}
+  NEXT_PUBLIC_CLOUDINARY_CLOUD_NAME: ${{ secrets.NEXT_PUBLIC_CLOUDINARY_CLOUD_NAME }}
+  CLOUDINARY_API_KEY: ${{ secrets.CLOUDINARY_API_KEY }}
+  CLOUDINARY_API_SECRET: ${{ secrets.CLOUDINARY_API_SECRET }}
+  UPSTASH_REDIS_REST_URL: ${{ secrets.UPSTASH_REDIS_REST_URL }}
+  UPSTASH_REDIS_REST_TOKEN: ${{ secrets.UPSTASH_REDIS_REST_TOKEN }}
+
 jobs:
-  ci:
+  lint-and-typecheck:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -1660,31 +1813,79 @@ jobs:
         working-directory: buddyscript
       - run: npx tsc --noEmit
         working-directory: buddyscript
-      - run: npx vitest run
+
+  unit-tests:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: 'npm'
+          cache-dependency-path: buddyscript/package-lock.json
+      - run: npm ci
         working-directory: buddyscript
-      - run: npx playwright install --with-deps chromium
+      - name: Run Prisma migrations on test database
+        run: npx prisma migrate deploy
         working-directory: buddyscript
-      - run: npx playwright test
+      - name: Seed test database
+        run: npx prisma db seed
         working-directory: buddyscript
-        env:
-          DATABASE_URL: ${{ secrets.DATABASE_URL }}
-          JWT_SECRET: ${{ secrets.JWT_SECRET }}
-          NEXT_PUBLIC_CLOUDINARY_CLOUD_NAME: ${{ secrets.NEXT_PUBLIC_CLOUDINARY_CLOUD_NAME }}
-          CLOUDINARY_API_KEY: ${{ secrets.CLOUDINARY_API_KEY }}
-          CLOUDINARY_API_SECRET: ${{ secrets.CLOUDINARY_API_SECRET }}
-          UPSTASH_REDIS_REST_URL: ${{ secrets.UPSTASH_REDIS_REST_URL }}
-          UPSTASH_REDIS_REST_TOKEN: ${{ secrets.UPSTASH_REDIS_REST_TOKEN }}
-      - run: npx next build
+      - name: Run unit and API integration tests
+        run: npx vitest run
         working-directory: buddyscript
-        env:
-          DATABASE_URL: ${{ secrets.DATABASE_URL }}
-          JWT_SECRET: ${{ secrets.JWT_SECRET }}
-          NEXT_PUBLIC_CLOUDINARY_CLOUD_NAME: ${{ secrets.NEXT_PUBLIC_CLOUDINARY_CLOUD_NAME }}
-          CLOUDINARY_API_KEY: ${{ secrets.CLOUDINARY_API_KEY }}
-          CLOUDINARY_API_SECRET: ${{ secrets.CLOUDINARY_API_SECRET }}
-          UPSTASH_REDIS_REST_URL: ${{ secrets.UPSTASH_REDIS_REST_URL }}
-          UPSTASH_REDIS_REST_TOKEN: ${{ secrets.UPSTASH_REDIS_REST_TOKEN }}
+
+  e2e-tests:
+    runs-on: ubuntu-latest
+    needs: [lint-and-typecheck]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: 'npm'
+          cache-dependency-path: buddyscript/package-lock.json
+      - run: npm ci
+        working-directory: buddyscript
+      - name: Run Prisma migrations
+        run: npx prisma migrate deploy
+        working-directory: buddyscript
+      - name: Seed database
+        run: npx prisma db seed
+        working-directory: buddyscript
+      - name: Build application
+        run: npx next build
+        working-directory: buddyscript
+      - name: Install Playwright browsers
+        run: npx playwright install --with-deps chromium
+        working-directory: buddyscript
+      - name: Start server and run E2E tests
+        run: |
+          npm start &
+          npx wait-on http://localhost:3000 --timeout 30000
+          npx playwright test
+        working-directory: buddyscript
+
+  build:
+    runs-on: ubuntu-latest
+    needs: [unit-tests, e2e-tests]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: 'npm'
+          cache-dependency-path: buddyscript/package-lock.json
+      - run: npm ci
+        working-directory: buddyscript
+      - name: Production build verification
+        run: npx next build
+        working-directory: buddyscript
 ```
+
+> **Note:** Add `wait-on` as a dev dependency in Task 1 Step 2: `npm install -D wait-on`
+
+> **IMPORTANT — CI database isolation:** The `DATABASE_URL` secret in GitHub Actions MUST point to a dedicated, disposable test database (e.g., a separate Neon branch or a throwaway DB), NOT the production database. CI runs `prisma migrate deploy` and `prisma db seed` which will reset/mutate data. Create a separate Neon project or branch specifically for CI and set the secret accordingly.
 
 **Step 2: Commit**
 
@@ -1758,10 +1959,12 @@ Record screen capture demonstrating (in order):
 10. Reply to a comment
 11. Like a comment → show count change
 12. Click like count on comment → show who liked
-13. Delete own comment → show "deleted" placeholder
-14. Delete own post → removed from feed
-15. Dark mode toggle → show it persists on reload
-16. Brief code walkthrough: project structure, Prisma schema, auth implementation, key API routes
+13. Like a reply → show count change (explicitly demonstrate reply likes work)
+14. Click like count on reply → show who liked the reply
+15. Delete own comment → show "deleted" placeholder
+16. Delete own post → removed from feed
+17. Dark mode toggle → show it persists on reload
+18. Brief code walkthrough: project structure, Prisma schema, auth implementation, key API routes
 
 **Step 3: Upload video**
 
