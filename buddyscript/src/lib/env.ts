@@ -9,6 +9,9 @@ const requiredEnvVars = [
 ] as const;
 
 export function validateEnv() {
+  // Skip validation during build phase (env vars may not be available)
+  if (process.env.NEXT_PHASE === 'phase-production-build') return;
+
   const missing = requiredEnvVars.filter((key) => !process.env[key]);
   if (missing.length > 0) {
     throw new Error(
