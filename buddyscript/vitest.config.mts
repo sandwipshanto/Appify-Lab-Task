@@ -5,6 +5,9 @@ export default defineConfig({
   test: {
     environment: 'node',
     globals: true,
+    env: {
+      JWT_SECRET: 'test-secret-key-for-vitest-minimum-length-32chars',
+    },
   },
   resolve: {
     alias: {
