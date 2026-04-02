@@ -3,7 +3,13 @@ import { SignJWT, jwtVerify } from 'jose';
 import { cookies } from 'next/headers';
 import { prisma } from './db';
 
-const JWT_SECRET = new TextEncoder().encode(process.env.JWT_SECRET);
+function getJWTSecret() {
+  const secret = process.env.JWT_SECRET;
+  if (!secret) throw new Error('JWT_SECRET environment variable is required');
+  return new TextEncoder().encode(secret);
+}
+
+const JWT_SECRET = getJWTSecret();
 const COOKIE_NAME = 'token';
 
 export async function hashPassword(password: string): Promise<string> {
@@ -23,7 +29,7 @@ export async function signJWT(payload: { userId: string }): Promise<string> {
 }
 
 export async function verifyJWT(token: string): Promise<{ userId: string }> {
-  const { payload } = await jwtVerify(token, JWT_SECRET);
+  const { payload } = await jwtVerify(token, JWT_SECRET, { algorithms: ['HS256'] });
   return payload as { userId: string };
 }
 
