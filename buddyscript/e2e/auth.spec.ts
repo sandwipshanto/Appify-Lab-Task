@@ -19,7 +19,9 @@ test.describe('Login Page', () => {
     await page.locator('#login-email').fill('nonexistent@example.com');
     await page.locator('#login-password').fill('WrongPass123');
     await page.getByRole('button', { name: /login now/i }).click();
-    await expect(page.getByRole('alert')).toBeVisible();
+    const alert = page.locator('.alert-danger');
+    await expect(alert).toBeVisible();
+    await expect(alert).toContainText(/invalid|incorrect|unauthorized/i);
     await expect(page).toHaveURL(/\/login/);
   });
 
