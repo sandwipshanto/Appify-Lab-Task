@@ -1,0 +1,85 @@
+import { NextResponse } from 'next/server';
+import { requireUser, requirePostAccess } from '@/lib/auth';
+import { prisma } from '@/lib/db';
+
+export async function POST(
+  _request: Request,
+  { params }: { params: Promise<{ id: string }> }
+) {
+  try {
+    const { userId } = await requireUser();
+    const { id: postId } = await params;
+
+    await requirePostAccess(postId, userId);
+
+    // Check if already liked (idempotent)
+    const existing = await prisma.postLike.findUnique({
+      where: { userId_postId: { userId, postId } },
+    });
+
+    if (existing) {
+      const post = await prisma.post.findUnique({
+        where: { id: postId },
+        select: { likeCount: true },
+      });
+      return NextResponse.json({ liked: true, likeCount: post!.likeCount });
+    }
+
+    // Atomic: create like + increment counter
+    const [, updatedPost] = await prisma.$transaction([
+      prisma.postLike.create({ data: { userId, postId } }),
+      prisma.post.update({
+        where: { id: postId },
+        data: { likeCount: { increment: 1 } },
+        select: { likeCount: true },
+      }),
+    ]);
+
+    return NextResponse.json({ liked: true, likeCount: updatedPost.likeCount });
+  } catch (error) {
+    if (error instanceof Response) return error;
+    return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
+  }
+}
+
+export async function DELETE(
+  _request: Request,
+  { params }: { params: Promise<{ id: string }> }
+) {
+  try {
+    const { userId } = await requireUser();
+    const { id: postId } = await params;
+
+    await requirePostAccess(postId, userId);
+
+    // Check if like exists (idempotent)
+    const existing = await prisma.postLike.findUnique({
+      where: { userId_postId: { userId, postId } },
+    });
+
+    if (!existing) {
+      const post = await prisma.post.findUnique({
+        where: { id: postId },
+        select: { likeCount: true },
+      });
+      return NextResponse.json({ liked: false, likeCount: post!.likeCount });
+    }
+
+    // Atomic: delete like + decrement counter
+    const [, updatedPost] = await prisma.$transaction([
+      prisma.postLike.delete({
+        where: { userId_postId: { userId, postId } },
+      }),
+      prisma.post.update({
+        where: { id: postId },
+        data: { likeCount: { decrement: 1 } },
+        select: { likeCount: true },
+      }),
+    ]);
+
+    return NextResponse.json({ liked: false, likeCount: updatedPost.likeCount });
+  } catch (error) {
+    if (error instanceof Response) return error;
+    return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
+  }
+}
