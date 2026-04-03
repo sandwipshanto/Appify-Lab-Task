@@ -26,17 +26,15 @@ export async function GET(
     const limit = 20;
 
     // Fetch top-level comments (parentId = null), including soft-deleted ones
+    const cursorFilter = cursor ? parseCursor(cursor) : null;
     const comments = await prisma.comment.findMany({
       where: {
         postId,
         parentId: null,
-        ...(cursor && {
+        ...(cursorFilter && {
           OR: [
-            { createdAt: { lt: new Date(cursor.split('_')[0]) } },
-            {
-              createdAt: new Date(cursor.split('_')[0]),
-              id: { lt: cursor.split('_')[1] },
-            },
+            { createdAt: { lt: cursorFilter.createdAt } },
+            { createdAt: cursorFilter.createdAt, id: { lt: cursorFilter.id } },
           ],
         }),
       },
@@ -225,4 +223,13 @@ function formatComment(c: {
     deleted,
     author: c.author,
   };
+}
+
+function parseCursor(cursor: string) {
+  const idx = cursor.indexOf('_');
+  if (idx === -1) return null;
+  const date = new Date(cursor.slice(0, idx));
+  const id = cursor.slice(idx + 1);
+  if (isNaN(date.getTime()) || !id) return null;
+  return { createdAt: date, id };
 }
