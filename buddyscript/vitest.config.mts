@@ -5,7 +5,8 @@ export default defineConfig({
   test: {
     environment: 'node',
     globals: true,
-    testTimeout: 15000,
+    testTimeout: 30000,
+    hookTimeout: 30000,
     env: {
       JWT_SECRET: 'test-secret-key-for-vitest-minimum-length-32chars',
     },
