@@ -1,8 +1,11 @@
 import { NextResponse } from 'next/server';
 import { prisma } from '@/lib/db';
-import { comparePassword, setAuthCookie } from '@/lib/auth';
+import { comparePassword, hashPassword, setAuthCookie } from '@/lib/auth';
 import { validateLogin } from '@/lib/validators';
 import { loginRateLimit, getClientIP } from '@/lib/rate-limit';
+
+// Pre-computed dummy hash for constant-time comparison when user doesn't exist
+const DUMMY_HASH = '$2a$12$LJ3m4ys3Lgzxo8WOkGE5IeN1HSRnKUaxMPnMWJHJXd5hSDBqaNqWe';
 
 export async function POST(request: Request) {
   const ip = getClientIP(request);
@@ -25,7 +28,11 @@ export async function POST(request: Request) {
   const { email, password } = validation.data;
   const user = await prisma.user.findUnique({ where: { email } });
 
-  if (!user || !(await comparePassword(password, user.password))) {
+  // Constant-time: always run bcrypt compare even if user doesn't exist
+  const hashToCompare = user ? user.password : DUMMY_HASH;
+  const passwordValid = await comparePassword(password, hashToCompare);
+
+  if (!user || !passwordValid) {
     console.error(`[AUTH] Failed login attempt from IP: ${ip}`);
     return NextResponse.json({ error: 'Invalid email or password' }, { status: 401 });
   }

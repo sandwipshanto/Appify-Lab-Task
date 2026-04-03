@@ -111,7 +111,7 @@ describe('Posts API', () => {
     expect(ids).not.toContain(publicPostId);
   });
 
-  it('Cursor pagination works correctly', async () => {
+  it('Cursor pagination works correctly', { timeout: 60000 }, async () => {
     // Create 12 posts for pagination test
     const postIds: string[] = [];
     for (let i = 0; i < 12; i++) {

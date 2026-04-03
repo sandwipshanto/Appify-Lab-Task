@@ -18,7 +18,7 @@ export async function getFeedPage(
   cursor: string | null,
   limit: number = 10
 ) {
-  const cursorFilter = cursor ? parseCursor(cursor) : undefined;
+  const cursorFilter = cursor ? parseCursor(cursor) : null;
 
   const [publicPosts, privatePosts] = await Promise.all([
     prisma.post.findMany({
@@ -66,8 +66,10 @@ export async function getFeedPage(
 
 function parseCursor(cursor: string) {
   const underscoreIdx = cursor.indexOf('_');
-  if (underscoreIdx === -1) throw new Error('Invalid cursor format');
+  if (underscoreIdx === -1) return null;
   const iso = cursor.slice(0, underscoreIdx);
   const id = cursor.slice(underscoreIdx + 1);
-  return { createdAt: new Date(iso), id };
+  const date = new Date(iso);
+  if (isNaN(date.getTime()) || !id) return null;
+  return { createdAt: date, id };
 }

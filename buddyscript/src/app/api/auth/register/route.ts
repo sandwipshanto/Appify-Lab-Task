@@ -24,15 +24,20 @@ export async function POST(request: Request) {
 
   const { firstName, lastName, email, password } = validation.data;
 
-  const existing = await prisma.user.findUnique({ where: { email } });
-  if (existing) {
-    return NextResponse.json({ error: 'Email already registered' }, { status: 409 });
-  }
-
   const hashedPassword = await hashPassword(password);
-  const user = await prisma.user.create({
-    data: { firstName, lastName, email, password: hashedPassword },
-  });
+
+  let user;
+  try {
+    user = await prisma.user.create({
+      data: { firstName, lastName, email, password: hashedPassword },
+    });
+  } catch (error: unknown) {
+    // Handle unique constraint violation (race condition or duplicate)
+    if (error && typeof error === 'object' && 'code' in error && error.code === 'P2002') {
+      return NextResponse.json({ error: 'Email already registered' }, { status: 409 });
+    }
+    throw error;
+  }
 
   await setAuthCookie(user.id);
 
