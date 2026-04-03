@@ -28,16 +28,15 @@ export async function GET(
     const cursor = searchParams.get('cursor');
     const limit = 50;
 
+    const cursorFilter = cursor ? parseLikeCursor(cursor) : null;
+
     const likes = await prisma.commentLike.findMany({
       where: {
         commentId,
-        ...(cursor && {
+        ...(cursorFilter && {
           OR: [
-            { createdAt: { lt: new Date(cursor.split('_')[0]) } },
-            {
-              createdAt: new Date(cursor.split('_')[0]),
-              id: { lt: cursor.split('_')[1] },
-            },
+            { createdAt: { lt: cursorFilter.createdAt } },
+            { createdAt: cursorFilter.createdAt, id: { lt: cursorFilter.id } },
           ],
         }),
       },
@@ -66,4 +65,13 @@ export async function GET(
     if (error instanceof Response) return error;
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
   }
+}
+
+function parseLikeCursor(cursor: string) {
+  const idx = cursor.indexOf('_');
+  if (idx === -1) return null;
+  const date = new Date(cursor.slice(0, idx));
+  const id = cursor.slice(idx + 1);
+  if (isNaN(date.getTime()) || !id) return null;
+  return { createdAt: date, id };
 }

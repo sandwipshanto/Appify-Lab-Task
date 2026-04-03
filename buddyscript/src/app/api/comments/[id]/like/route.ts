@@ -50,19 +50,23 @@ export async function POST(
     }
 
     // Atomic: create like + increment counter
-    const [, updatedComment] = await prisma.$transaction([
-      prisma.commentLike.create({ data: { userId, commentId } }),
-      prisma.comment.update({
-        where: { id: commentId },
-        data: { likeCount: { increment: 1 } },
-        select: { likeCount: true },
-      }),
-    ]);
-
-    return NextResponse.json({
-      liked: true,
-      likeCount: updatedComment.likeCount,
-    });
+    try {
+      const [, updatedComment] = await prisma.$transaction([
+        prisma.commentLike.create({ data: { userId, commentId } }),
+        prisma.comment.update({
+          where: { id: commentId },
+          data: { likeCount: { increment: 1 } },
+          select: { likeCount: true },
+        }),
+      ]);
+      return NextResponse.json({ liked: true, likeCount: updatedComment.likeCount });
+    } catch (txError: unknown) {
+      if (txError && typeof txError === 'object' && 'code' in txError && txError.code === 'P2002') {
+        const current = await prisma.comment.findUnique({ where: { id: commentId }, select: { likeCount: true } });
+        return NextResponse.json({ liked: true, likeCount: current!.likeCount });
+      }
+      throw txError;
+    }
   } catch (error) {
     if (error instanceof Response) return error;
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
@@ -101,21 +105,25 @@ export async function DELETE(
     }
 
     // Atomic: delete like + decrement counter
-    const [, updatedComment] = await prisma.$transaction([
-      prisma.commentLike.delete({
-        where: { userId_commentId: { userId, commentId } },
-      }),
-      prisma.comment.update({
-        where: { id: commentId },
-        data: { likeCount: { decrement: 1 } },
-        select: { likeCount: true },
-      }),
-    ]);
-
-    return NextResponse.json({
-      liked: false,
-      likeCount: updatedComment.likeCount,
-    });
+    try {
+      const [, updatedComment] = await prisma.$transaction([
+        prisma.commentLike.delete({
+          where: { userId_commentId: { userId, commentId } },
+        }),
+        prisma.comment.update({
+          where: { id: commentId },
+          data: { likeCount: { decrement: 1 } },
+          select: { likeCount: true },
+        }),
+      ]);
+      return NextResponse.json({ liked: false, likeCount: updatedComment.likeCount });
+    } catch (txError: unknown) {
+      if (txError && typeof txError === 'object' && 'code' in txError && txError.code === 'P2025') {
+        const current = await prisma.comment.findUnique({ where: { id: commentId }, select: { likeCount: true } });
+        return NextResponse.json({ liked: false, likeCount: current!.likeCount });
+      }
+      throw txError;
+    }
   } catch (error) {
     if (error instanceof Response) return error;
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
