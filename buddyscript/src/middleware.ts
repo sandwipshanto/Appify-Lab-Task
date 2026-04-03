@@ -13,7 +13,11 @@ export async function middleware(request: NextRequest) {
   if (pathname.startsWith('/api/') && ['POST', 'PUT', 'PATCH', 'DELETE'].includes(request.method)) {
     const origin = request.headers.get('origin');
     const host = request.headers.get('host');
-    if (!origin || new URL(origin).host !== host) {
+    try {
+      if (!origin || new URL(origin).host !== host) {
+        return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
+      }
+    } catch {
       return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
     }
   }

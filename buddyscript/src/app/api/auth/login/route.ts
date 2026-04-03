@@ -11,7 +11,12 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: 'Too many attempts. Try again later.' }, { status: 429 });
   }
 
-  const body = await request.json();
+  let body;
+  try {
+    body = await request.json();
+  } catch {
+    return NextResponse.json({ error: 'Invalid request body' }, { status: 400 });
+  }
   const validation = validateLogin(body);
   if (!validation.success) {
     return NextResponse.json({ errors: validation.errors }, { status: 400 });
