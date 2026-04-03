@@ -73,7 +73,7 @@ export async function requirePostAccess(postId: string, userId: string) {
     throw new Response(JSON.stringify({ error: 'Not found' }), { status: 404 });
   }
   if (post.visibility === 'PRIVATE' && post.authorId !== userId) {
-    throw new Response(JSON.stringify({ error: 'Forbidden' }), { status: 403 });
+    throw new Response(JSON.stringify({ error: 'Not found' }), { status: 404 });
   }
   return post;
 }

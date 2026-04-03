@@ -160,13 +160,14 @@ describe('Comments API', () => {
     expect(deletedComment.replies[0].deleted).toBe(false);
   });
 
-  it('UserB tries to comment on the private post and gets 403', async () => {
+  it('UserB tries to comment on the private post and gets 404', async () => {
     const res = await fetch(`${BASE_URL}/api/posts/${privatePostId}/comments`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json', Origin: ORIGIN, Cookie: cookieB },
       body: JSON.stringify({ content: 'Should be forbidden' }),
     });
-    expect(res.status).toBe(403);
+    // Returns 404 instead of 403 to avoid leaking post existence
+    expect(res.status).toBe(404);
   });
 
   it('Unauthenticated user tries to comment and gets 401', async () => {

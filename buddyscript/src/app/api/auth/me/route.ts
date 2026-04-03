@@ -13,6 +13,6 @@ export async function GET() {
     return NextResponse.json({ user });
   } catch (error) {
     if (error instanceof Response) return error;
-    return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+    return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
   }
 }

@@ -46,6 +46,8 @@ describe('Upload Signature API', () => {
     expect(data).toHaveProperty('apiKey');
     expect(data).toHaveProperty('cloudName');
     expect(data).toHaveProperty('folder', 'buddyscript');
+    expect(data).toHaveProperty('allowedFormats', 'jpg,png,gif,webp');
+    expect(data).toHaveProperty('maxFileSize', 5242880);
     expect(typeof data.timestamp).toBe('number');
     expect(typeof data.signature).toBe('string');
     expect(data.signature.length).toBeGreaterThan(0);

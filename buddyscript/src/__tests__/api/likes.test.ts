@@ -118,12 +118,13 @@ describe('Likes API', () => {
     expect(data.users[0]).toHaveProperty('id');
   });
 
-  it('UserB cannot like the private post — 403', async () => {
+  it('UserB cannot like the private post — 404', async () => {
     const res = await fetch(`${BASE_URL}/api/posts/${privatePostId}/like`, {
       method: 'POST',
       headers: { Origin: ORIGIN, Cookie: cookieB },
     });
-    expect(res.status).toBe(403);
+    // Returns 404 instead of 403 to avoid leaking post existence
+    expect(res.status).toBe(404);
   });
 
   it('Unauthenticated request returns 401', async () => {

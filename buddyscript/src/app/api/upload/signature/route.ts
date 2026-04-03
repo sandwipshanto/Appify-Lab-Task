@@ -36,6 +36,8 @@ export async function POST(request: Request) {
       apiKey: process.env.CLOUDINARY_API_KEY,
       cloudName: process.env.NEXT_PUBLIC_CLOUDINARY_CLOUD_NAME,
       folder,
+      allowedFormats: params.allowed_formats,
+      maxFileSize: params.max_file_size,
     });
   } catch (error) {
     if (error instanceof Response) return error;

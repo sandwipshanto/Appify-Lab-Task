@@ -82,7 +82,8 @@ describe('Posts API', () => {
     const res = await fetch(`${BASE_URL}/api/posts/${privatePostId}`, {
       headers: { Cookie: cookieB },
     });
-    expect(res.status).toBe(403);
+    // Returns 404 instead of 403 to avoid leaking post existence
+    expect(res.status).toBe(404);
   });
 
   it('UserB cannot DELETE UserA public post', async () => {

@@ -69,6 +69,7 @@ model Comment {
   likes   CommentLike[]
 
   @@index([postId, parentId, createdAt(sort: Desc), id(sort: Desc)])
+  @@index([parentId, createdAt(sort: Desc), id(sort: Desc)])
   @@index([authorId])
 }
 

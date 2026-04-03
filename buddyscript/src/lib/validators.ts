@@ -2,17 +2,27 @@ type ValidationResult<T> =
   | { success: true; data: T }
   | { success: false; errors: Record<string, string> };
 
+function isObject(value: unknown): value is Record<string, unknown> {
+  return typeof value === 'object' && value !== null && !Array.isArray(value);
+}
+
+const INVALID_BODY: ValidationResult<never> = {
+  success: false,
+  errors: { body: 'Invalid request body' },
+};
+
 export function validateRegistration(input: {
   firstName: string;
   lastName: string;
   email: string;
   password: string;
 }): ValidationResult<{ firstName: string; lastName: string; email: string; password: string }> {
+  if (!isObject(input)) return INVALID_BODY;
   const errors: Record<string, string> = {};
-  const firstName = input.firstName?.trim();
-  const lastName = input.lastName?.trim();
-  const email = input.email?.trim().toLowerCase();
-  const password = input.password;
+  const firstName = (typeof input.firstName === 'string' ? input.firstName : '').trim();
+  const lastName = (typeof input.lastName === 'string' ? input.lastName : '').trim();
+  const email = (typeof input.email === 'string' ? input.email : '').trim().toLowerCase();
+  const password = typeof input.password === 'string' ? input.password : '';
 
   if (!firstName || firstName.length > 50) errors.firstName = 'First name is required (max 50 chars)';
   if (!lastName || lastName.length > 50) errors.lastName = 'Last name is required (max 50 chars)';
@@ -28,12 +38,13 @@ export function validateRegistration(input: {
 }
 
 export function validateLogin(input: { email: string; password: string }): ValidationResult<{ email: string; password: string }> {
+  if (!isObject(input)) return INVALID_BODY;
   const errors: Record<string, string> = {};
-  const email = input.email?.trim().toLowerCase();
-  const password = input.password;
+  const email = (typeof input.email === 'string' ? input.email : '').trim().toLowerCase();
+  const password = typeof input.password === 'string' ? input.password : '';
 
-  if (!email) errors.email = 'Email is required';
-  if (!password) errors.password = 'Password is required';
+  if (!email || email.length > 255) errors.email = 'Email is required';
+  if (!password || password.length > 128) errors.password = 'Password is required';
 
   if (Object.keys(errors).length > 0) return { success: false, errors };
   return { success: true, data: { email, password } };
@@ -44,10 +55,11 @@ export function validatePost(input: {
   visibility: string;
   imageUrl?: string;
 }): ValidationResult<{ content: string; visibility: 'PUBLIC' | 'PRIVATE'; imageUrl?: string }> {
+  if (!isObject(input)) return INVALID_BODY;
   const errors: Record<string, string> = {};
-  const content = input.content?.trim();
-  const visibility = input.visibility;
-  const imageUrl = input.imageUrl?.trim();
+  const content = (typeof input.content === 'string' ? input.content : '').trim();
+  const visibility = typeof input.visibility === 'string' ? input.visibility : '';
+  const imageUrl = (typeof input.imageUrl === 'string' ? input.imageUrl : '').trim() || undefined;
   const cloudName = process.env.NEXT_PUBLIC_CLOUDINARY_CLOUD_NAME;
 
   if (!content && !imageUrl) errors.content = 'Post must have text or an image';
@@ -66,8 +78,9 @@ export function validateComment(input: {
   content: string;
   parentId?: string;
 }): ValidationResult<{ content: string; parentId?: string }> {
+  if (!isObject(input)) return INVALID_BODY;
   const errors: Record<string, string> = {};
-  const content = input.content?.trim();
+  const content = (typeof input.content === 'string' ? input.content : '').trim();
 
   if (!content || content.length < 1) errors.content = 'Comment cannot be empty';
   if (content && content.length > 2000) errors.content = 'Comment max 2000 characters';

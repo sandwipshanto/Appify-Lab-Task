@@ -83,7 +83,15 @@ export async function DELETE(
       return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
     }
 
-    await prisma.post.delete({ where: { id } });
+    try {
+      await prisma.post.delete({ where: { id } });
+    } catch (e: unknown) {
+      // P2025: record already deleted by concurrent request — treat as success
+      if (e && typeof e === 'object' && 'code' in e && e.code === 'P2025') {
+        return NextResponse.json({ message: 'Post deleted' }, { status: 200 });
+      }
+      throw e;
+    }
 
     return NextResponse.json({ message: 'Post deleted' }, { status: 200 });
   } catch (error) {
