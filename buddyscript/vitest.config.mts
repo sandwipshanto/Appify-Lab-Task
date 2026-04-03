@@ -5,6 +5,7 @@ export default defineConfig({
   test: {
     environment: 'node',
     globals: true,
+    exclude: ['e2e/**', 'node_modules/**'],
     testTimeout: 30000,
     hookTimeout: 30000,
     env: {
