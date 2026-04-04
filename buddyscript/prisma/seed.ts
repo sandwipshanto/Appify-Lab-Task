@@ -114,7 +114,7 @@ async function main() {
   for (const like of postLikes) {
     postLikeCounts.set(like.postId, (postLikeCounts.get(like.postId) || 0) + 1);
   }
-  for (const [postId, count] of postLikeCounts) {
+  for (const [postId, count] of Array.from(postLikeCounts.entries())) {
     await prisma.post.update({ where: { id: postId }, data: { likeCount: count } });
   }
 
@@ -164,7 +164,7 @@ async function main() {
   for (const c of [...commentData, ...replyData]) {
     postCommentCounts.set(c.postId, (postCommentCounts.get(c.postId) || 0) + 1);
   }
-  for (const [postId, count] of postCommentCounts) {
+  for (const [postId, count] of Array.from(postCommentCounts.entries())) {
     await prisma.post.update({ where: { id: postId }, data: { commentCount: count } });
   }
 
@@ -196,7 +196,7 @@ async function main() {
   for (const like of commentLikes) {
     commentLikeCounts.set(like.commentId, (commentLikeCounts.get(like.commentId) || 0) + 1);
   }
-  for (const [commentId, count] of commentLikeCounts) {
+  for (const [commentId, count] of Array.from(commentLikeCounts.entries())) {
     await prisma.comment.update({ where: { id: commentId }, data: { likeCount: count } });
   }
 

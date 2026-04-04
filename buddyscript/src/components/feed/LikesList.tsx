@@ -21,22 +21,28 @@ export default function LikesList({ targetType, targetId, onClose }: LikesListPr
   const [loading, setLoading] = useState(true);
   const [hasMore, setHasMore] = useState(false);
 
-  const fetchLikes = useCallback(async (nextCursor: string | null) => {
+  const fetchLikes = useCallback(async (nextCursor: string | null, signal?: AbortSignal) => {
     const url = targetType === 'post'
       ? `/api/posts/${targetId}/likes`
       : `/api/comments/${targetId}/likes`;
     const params = nextCursor ? `?cursor=${nextCursor}` : '';
-    const res = await fetch(`${url}${params}`);
+    const res = await fetch(`${url}${params}`, { signal });
     if (!res.ok) return;
     const data = await res.json();
-    setUsers((prev) => [...prev, ...data.users]);
+    // On initial load, replace list entirely. On pagination, append.
+    setUsers((prev) => nextCursor ? [...prev, ...data.users] : data.users);
     setCursor(data.nextCursor);
     setHasMore(!!data.nextCursor);
     setLoading(false);
   }, [targetType, targetId]);
 
   useEffect(() => {
-    fetchLikes(null);
+    const controller = new AbortController();
+    fetchLikes(null, controller.signal).catch((err) => {
+      // Ignore AbortError from cleanup — it's expected on unmount/StrictMode double-invoke
+      if (err?.name !== 'AbortError') setLoading(false);
+    });
+    return () => controller.abort();
   }, [fetchLikes]);
 
   const dialogRef = useRef<HTMLDivElement>(null);

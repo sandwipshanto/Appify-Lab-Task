@@ -33,7 +33,7 @@ export default function PostCard({ post, currentUserId, onDelete, onToggleCommen
     if (!confirm('Delete this post?')) return;
     setDeleting(true);
     try {
-      const res = await fetch(`/api/posts/${post.id}`, { method: 'DELETE' });
+      const res = await fetch(`/api/posts/${post.id}`, { method: 'DELETE', headers: { Origin: window.location.origin } });
       if (res.ok) onDelete(post.id);
     } finally {
       setDeleting(false);

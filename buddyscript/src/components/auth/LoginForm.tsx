@@ -19,20 +19,21 @@ export default function LoginForm() {
     try {
       const res = await fetch('/api/auth/login', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: { 'Content-Type': 'application/json', Origin: window.location.origin },
         body: JSON.stringify({ email, password }),
       });
 
       if (!res.ok) {
         const data = await res.json();
         setError(data.error || 'Login failed');
+        setSubmitting(false);
         return;
       }
 
+      // Keep submitting=true while navigating so button doesn't flash back
       router.push('/feed');
     } catch {
       setError('Network error. Please try again.');
-    } finally {
       setSubmitting(false);
     }
   }

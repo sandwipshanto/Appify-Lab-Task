@@ -71,7 +71,7 @@ export default function CommentSection({ postId, currentUserId }: CommentSection
     try {
       const res = await fetch(`/api/posts/${postId}/comments`, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: { 'Content-Type': 'application/json', Origin: window.location.origin },
         body: JSON.stringify({ content: newComment.trim() }),
       });
       if (res.ok) {
@@ -149,7 +149,7 @@ function CommentCard({ comment, postId, currentUserId, onDelete }: { comment: Co
     try {
       const res = await fetch(`/api/posts/${postId}/comments`, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: { 'Content-Type': 'application/json', Origin: window.location.origin },
         body: JSON.stringify({ content: replyText.trim(), parentId: comment.id }),
       });
       if (res.ok) {
@@ -167,7 +167,7 @@ function CommentCard({ comment, postId, currentUserId, onDelete }: { comment: Co
     if (!confirm('Delete this comment?')) return;
     setDeleting(true);
     try {
-      const res = await fetch(`/api/comments/${comment.id}`, { method: 'DELETE' });
+      const res = await fetch(`/api/comments/${comment.id}`, { method: 'DELETE', headers: { Origin: window.location.origin } });
       if (res.ok) {
         setDeleted(true);
         onDelete(comment.id);
@@ -266,7 +266,7 @@ function ReplyCard({ reply, currentUserId, onDelete }: { reply: Comment; current
     if (!confirm('Delete this reply?')) return;
     setDeleting(true);
     try {
-      const res = await fetch(`/api/comments/${reply.id}`, { method: 'DELETE' });
+      const res = await fetch(`/api/comments/${reply.id}`, { method: 'DELETE', headers: { Origin: window.location.origin } });
       if (res.ok) {
         setDeleted(true);
         onDelete(reply.id);

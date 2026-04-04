@@ -33,7 +33,7 @@ export default function RegisterForm() {
     try {
       const res = await fetch('/api/auth/register', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: { 'Content-Type': 'application/json', Origin: window.location.origin },
         body: JSON.stringify({ firstName, lastName, email, password }),
       });
 
@@ -45,13 +45,14 @@ export default function RegisterForm() {
         } else {
           setErrors({ general: data.error || 'Registration failed' });
         }
+        setSubmitting(false);
         return;
       }
 
+      // Keep submitting=true while navigating so button doesn't flash back
       router.push('/feed');
     } catch {
       setErrors({ general: 'Network error. Please try again.' });
-    } finally {
       setSubmitting(false);
     }
   }

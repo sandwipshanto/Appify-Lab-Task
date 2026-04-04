@@ -31,6 +31,7 @@ export default function LikeButton({ targetType, targetId, liked: initialLiked, 
 
       const res = await fetch(url, {
         method: wasLiked ? 'DELETE' : 'POST',
+        headers: { Origin: window.location.origin },
       });
 
       if (!res.ok) {
@@ -58,8 +59,8 @@ export default function LikeButton({ targetType, targetId, liked: initialLiked, 
       <button
         className={`_feed_inner_timeline_reaction_emoji _feed_reaction${liked ? ' _feed_reaction_active' : ''}`}
         onClick={handleToggle}
-        disabled={pending}
         type="button"
+        style={{ cursor: pending ? 'default' : 'pointer' }}
       >
         <span className="_feed_inner_timeline_reaction_link">
           <span>

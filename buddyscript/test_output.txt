@@ -1,0 +1,411 @@
+﻿
+[1m[46m RUN [49m[22m [36mv4.1.2 [39m[90mF:/AppifyLab Task/buddyscript[39m
+
+ [32mΓ£ô[39m src/__tests__/lib/validators.test.ts [2m([22m[2m24 tests[22m[2m)[22m[32m 29[2mms[22m[39m
+ [31mΓ¥»[39m src/__tests__/api/upload.test.ts [2m([22m[2m3 tests[22m[2m | [22m[33m3 skipped[39m[2m)[22m[33m 509[2mms[22m[39m
+     [2m[90mΓåô[39m[22m returns 401 for unauthenticated requests
+     [2m[90mΓåô[39m[22m returns signed params for authenticated user
+     [2m[90mΓåô[39m[22m rejects non-POST methods
+ [31mΓ¥»[39m src/__tests__/api/likes.test.ts [2m([22m[2m14 tests[22m[2m | [22m[33m14 skipped[39m[2m)[22m[33m 508[2mms[22m[39m
+     [2m[90mΓåô[39m[22m UserA likes own public post
+     [2m[90mΓåô[39m[22m UserA likes same post again ΓÇö idempotent 200
+     [2m[90mΓåô[39m[22m UserB likes the public post
+     [2m[90mΓåô[39m[22m UserA unlikes the public post
+     [2m[90mΓåô[39m[22m UserA unlikes again ΓÇö idempotent 200
+     [2m[90mΓåô[39m[22m GET /api/posts/:id/likes returns list with UserB
+     [2m[90mΓåô[39m[22m UserB cannot like the private post ΓÇö 404
+     [2m[90mΓåô[39m[22m Unauthenticated request returns 401
+     [2m[90mΓåô[39m[22m Like on nonexistent post returns 404
+       [2m[90mΓåô[39m[22m UserB likes the comment
+       [2m[90mΓåô[39m[22m UserB likes the comment again ΓÇö idempotent
+       [2m[90mΓåô[39m[22m GET /api/comments/:id/likes returns UserB
+       [2m[90mΓåô[39m[22m UserB unlikes the comment
+       [2m[90mΓåô[39m[22m Like on nonexistent comment returns 404
+ [31mΓ¥»[39m src/__tests__/api/posts.test.ts [2m([22m[2m11 tests[22m[2m | [22m[33m11 skipped[39m[2m)[22m[33m 498[2mms[22m[39m
+     [2m[90mΓåô[39m[22m UserA creates a public post
+     [2m[90mΓåô[39m[22m UserA creates a private post
+     [2m[90mΓåô[39m[22m UserA gets feed and sees both posts
+     [2m[90mΓåô[39m[22m UserB gets feed and sees only public post
+     [2m[90mΓåô[39m[22m UserB cannot GET private post directly
+     [2m[90mΓåô[39m[22m UserB cannot DELETE UserA public post
+     [2m[90mΓåô[39m[22m UserA deletes own public post
+     [2m[90mΓåô[39m[22m Deleted post is gone from feed
+     [2m[90mΓåô[39m[22m Cursor pagination works correctly
+     [2m[90mΓåô[39m[22m Unauthenticated request returns 401
+     [2m[90mΓåô[39m[22m POST with invalid body returns 400
+ [31mΓ¥»[39m src/__tests__/api/comments.test.ts [2m([22m[2m10 tests[22m[2m | [22m[33m10 skipped[39m[2m)[22m[33m 519[2mms[22m[39m
+     [2m[90mΓåô[39m[22m UserA creates a comment on the public post
+     [2m[90mΓåô[39m[22m UserB creates a reply to that comment
+     [2m[90mΓåô[39m[22m UserB tries reply-to-reply and gets 400
+     [2m[90mΓåô[39m[22m UserB tries to comment with parentId from a different post and gets 400
+     [2m[90mΓåô[39m[22m GET /api/posts/:id/comments returns comment with inline reply
+     [2m[90mΓåô[39m[22m UserA soft-deletes own comment
+     [2m[90mΓåô[39m[22m GET comments shows deleted comment with content null, reply still visible
+     [2m[90mΓåô[39m[22m UserB tries to comment on the private post and gets 404
+     [2m[90mΓåô[39m[22m Unauthenticated user tries to comment and gets 401
+     [2m[90mΓåô[39m[22m commentCount reflects creates and deletes correctly
+ [31mΓ¥»[39m src/__tests__/api/auth.test.ts [2m([22m[2m7 tests[22m[2m | [22m[31m7 failed[39m[2m)[22m[33m 1453[2mms[22m[39m
+[31m     [31m├ù[31m registers a new user[39m[32m 279[2mms[22m[39m
+[31m     [31m├ù[31m rejects duplicate email[39m[33m 517[2mms[22m[39m
+[31m     [31m├ù[31m logs in with correct credentials[39m[32m 186[2mms[22m[39m
+[31m     [31m├ù[31m rejects wrong password[39m[32m 179[2mms[22m[39m
+[31m     [31m├ù[31m returns current user with valid cookie[39m[32m 108[2mms[22m[39m
+[31m     [31m├ù[31m returns 401 without cookie[39m[32m 87[2mms[22m[39m
+[31m     [31m├ù[31m clears cookie on logout[39m[32m 92[2mms[22m[39m
+ [32mΓ£ô[39m src/__tests__/lib/auth.test.ts [2m([22m[2m5 tests[22m[2m)[22m[33m 1985[2mms[22m[39m
+     [33m[2mΓ£ô[22m[39m hashes and verifies a password [33m 1294[2mms[22m[39m
+     [33m[2mΓ£ô[22m[39m produces different hashes for the same password [33m 671[2mms[22m[39m
+npx : 
+At line:1 char:1
++ npx vitest run 2>&1 | Out-File -Encoding utf8 
+test_output.txt
++ ~~~~~~~~~~~~~~~~~~~
+    + CategoryInfo          : NotSpecified: (:String)  
+   [], RemoteException
+    + FullyQualifiedErrorId : NativeCommandError
+ 
+[31mΓÄ»ΓÄ»ΓÄ»ΓÄ»ΓÄ»ΓÄ»[39m[1m[41m Failed Suites 4 
+[49m[22m[31mΓÄ»ΓÄ»ΓÄ»ΓÄ»ΓÄ»ΓÄ»ΓÄ»[39m
+
+[41m[1m FAIL [22m[49m 
+src/__tests__/api/comments.test.ts[2m > [22mComments 
+API
+[31m[1mAssertionError[22m: expected 404 to be 201 
+// Object.is equality[39m
+
+[32m- Expected[39m
+[31m+ Received[39m
+
+[32m- 201[39m
+[31m+ 404[39m
+
+[36m [2mΓ¥»[22m registerUser 
+src/__tests__/api/comments.test.ts:[2m20:22[22m[39m
+    [90m 18|[39m     })[33m,[39m
+    [90m 19|[39m   })[33m;[39m
+    [90m 20|[39m   [34mexpect[39m(res[33m.[39msta
+tus)[33m.[39m[34mtoBe[39m([34m201[39m)[33m;[39m
+    [90m   |[39m                      [31m^[39m
+    [90m 21|[39m   [35mreturn[39m res[33m.[39mhea
+ders[33m.[39m[35mget[39m([32m'set-cookie'[39m) 
+[33m||[39m [32m''[39m[33m;[39m
+    [90m 22|[39m }
+[90m [2mΓ¥»[22m 
+src/__tests__/api/comments.test.ts:[2m31:15[22m[39m
+
+[31m[2mΓÄ»ΓÄ»ΓÄ»ΓÄ»ΓÄ»ΓÄ»ΓÄ»ΓÄ»ΓÄ»ΓÄ»ΓÄ»ΓÄ»ΓÄ»ΓÄ»ΓÄ»Γ
+Ä»ΓÄ»ΓÄ»ΓÄ»ΓÄ»ΓÄ»ΓÄ»ΓÄ»[1/11]ΓÄ»[22m[39m
+
+[41m[1m FAIL [22m[49m 
+src/__tests__/api/likes.test.ts[2m > [22mLikes API
+[31m[1mAssertionError[22m: expected 404 to be 201 
+// Object.is equality[39m
+
+[32m- Expected[39m
+[31m+ Received[39m
+
+[32m- 201[39m
+[31m+ 404[39m
+
+[36m [2mΓ¥»[22m registerUser 
+src/__tests__/api/likes.test.ts:[2m20:22[22m[39m
+    [90m 18|[39m     })[33m,[39m
+    [90m 19|[39m   })[33m;[39m
+    [90m 20|[39m   [34mexpect[39m(res[33m.[39msta
+tus)[33m.[39m[34mtoBe[39m([34m201[39m)[33m;[39m
+    [90m   |[39m                      [31m^[39m
+    [90m 21|[39m   [35mreturn[39m res[33m.[39mhea
+ders[33m.[39m[35mget[39m([32m'set-cookie'[39m) 
+[33m||[39m [32m''[39m[33m;[39m
+    [90m 22|[39m }
+[90m [2mΓ¥»[22m 
+src/__tests__/api/likes.test.ts:[2m29:15[22m[39m
+
+[31m[2mΓÄ»ΓÄ»ΓÄ»ΓÄ»ΓÄ»ΓÄ»ΓÄ»ΓÄ»ΓÄ»ΓÄ»ΓÄ»ΓÄ»ΓÄ»ΓÄ»ΓÄ»Γ
+Ä»ΓÄ»ΓÄ»ΓÄ»ΓÄ»ΓÄ»ΓÄ»ΓÄ»[2/11]ΓÄ»[22m[39m
+
+[41m[1m FAIL [22m[49m 
+src/__tests__/api/posts.test.ts[2m > [22mPosts API
+[31m[1mAssertionError[22m: expected 404 to be 201 
+// Object.is equality[39m
+
+[32m- Expected[39m
+[31m+ Received[39m
+
+[32m- 201[39m
+[31m+ 404[39m
+
+[36m [2mΓ¥»[22m registerUser 
+src/__tests__/api/posts.test.ts:[2m20:22[22m[39m
+    [90m 18|[39m     })[33m,[39m
+    [90m 19|[39m   })[33m;[39m
+    [90m 20|[39m   [34mexpect[39m(res[33m.[39msta
+tus)[33m.[39m[34mtoBe[39m([34m201[39m)[33m;[39m
+    [90m   |[39m                      [31m^[39m
+    [90m 21|[39m   [35mreturn[39m res[33m.[39mhea
+ders[33m.[39m[35mget[39m([32m'set-cookie'[39m) 
+[33m||[39m [32m''[39m[33m;[39m
+    [90m 22|[39m }
+[90m [2mΓ¥»[22m 
+src/__tests__/api/posts.test.ts:[2m26:15[22m[39m
+
+[31m[2mΓÄ»ΓÄ»ΓÄ»ΓÄ»ΓÄ»ΓÄ»ΓÄ»ΓÄ»ΓÄ»ΓÄ»ΓÄ»ΓÄ»ΓÄ»ΓÄ»ΓÄ»Γ
+Ä»ΓÄ»ΓÄ»ΓÄ»ΓÄ»ΓÄ»ΓÄ»ΓÄ»[3/11]ΓÄ»[22m[39m
+
+[41m[1m FAIL [22m[49m 
+src/__tests__/api/upload.test.ts[2m > [22mUpload 
+Signature API
+[31m[1mAssertionError[22m: expected 404 to be 201 
+// Object.is equality[39m
+
+[32m- Expected[39m
+[31m+ Received[39m
+
+[32m- 201[39m
+[31m+ 404[39m
+
+[36m [2mΓ¥»[22m registerUser 
+src/__tests__/api/upload.test.ts:[2m19:22[22m[39m
+    [90m 17|[39m     })[33m,[39m
+    [90m 18|[39m   })[33m;[39m
+    [90m 19|[39m   [34mexpect[39m(res[33m.[39msta
+tus)[33m.[39m[34mtoBe[39m([34m201[39m)[33m;[39m
+    [90m   |[39m                      [31m^[39m
+    [90m 20|[39m   [35mreturn[39m res[33m.[39mhea
+ders[33m.[39m[35mget[39m([32m'set-cookie'[39m) 
+[33m||[39m [32m''[39m[33m;[39m
+    [90m 21|[39m }
+[90m [2mΓ¥»[22m 
+src/__tests__/api/upload.test.ts:[2m25:14[22m[39m
+
+[31m[2mΓÄ»ΓÄ»ΓÄ»ΓÄ»ΓÄ»ΓÄ»ΓÄ»ΓÄ»ΓÄ»ΓÄ»ΓÄ»ΓÄ»ΓÄ»ΓÄ»ΓÄ»Γ
+Ä»ΓÄ»ΓÄ»ΓÄ»ΓÄ»ΓÄ»ΓÄ»ΓÄ»[4/11]ΓÄ»[22m[39m
+
+
+[31mΓÄ»ΓÄ»ΓÄ»ΓÄ»ΓÄ»ΓÄ»ΓÄ»[39m[1m[41m Failed Tests 
+7 [49m[22m[31mΓÄ»ΓÄ»ΓÄ»ΓÄ»ΓÄ»ΓÄ»ΓÄ»[39m
+
+[41m[1m FAIL [22m[49m 
+src/__tests__/api/auth.test.ts[2m > [22mAuth API[2m 
+> [22mregisters a new user
+[31m[1mAssertionError[22m: expected 404 to be 201 
+// Object.is equality[39m
+
+[32m- Expected[39m
+[31m+ Received[39m
+
+[32m- 201[39m
+[31m+ 404[39m
+
+[36m [2mΓ¥»[22m 
+src/__tests__/api/auth.test.ts:[2m20:24[22m[39m
+    [90m 18|[39m       })[33m,[39m
+    [90m 19|[39m     })[33m;[39m
+    [90m 20|[39m     [34mexpect[39m(res[33m.[39ms
+tatus)[33m.[39m[34mtoBe[39m([34m201[39m)[33m;[3
+9m
+    [90m   |[39m                        [31m^[39m
+    [90m 21|[39m     authCookie [33m=[39m res[33m.
+[39mheaders[33m.[39m[35mget[39m([32m'set-cookie'
+[39m) [33m||[39m [32m''[39m[33m;[39m
+    [90m 22|[39m     [34mexpect[39m(authCookie)[33
+m.[39m[34mtoContain[39m([32m'token='[39m)[33m;[3
+9m
+
+[31m[2mΓÄ»ΓÄ»ΓÄ»ΓÄ»ΓÄ»ΓÄ»ΓÄ»ΓÄ»ΓÄ»ΓÄ»ΓÄ»ΓÄ»ΓÄ»ΓÄ»ΓÄ»Γ
+Ä»ΓÄ»ΓÄ»ΓÄ»ΓÄ»ΓÄ»ΓÄ»ΓÄ»[5/11]ΓÄ»[22m[39m
+
+[41m[1m FAIL [22m[49m 
+src/__tests__/api/auth.test.ts[2m > [22mAuth API[2m 
+> [22mrejects duplicate email
+[31m[1mAssertionError[22m: expected 404 to be 409 
+// Object.is equality[39m
+
+[32m- Expected[39m
+[31m+ Received[39m
+
+[32m- 409[39m
+[31m+ 404[39m
+
+[36m [2mΓ¥»[22m 
+src/__tests__/api/auth.test.ts:[2m37:24[22m[39m
+    [90m 35|[39m       body: JSON.stringify({ 
+firstName: 'C', lastName: 'D', email, pasΓÇª
+    [90m 36|[39m     })[33m;[39m
+    [90m 37|[39m     [34mexpect[39m(res[33m.[39ms
+tatus)[33m.[39m[34mtoBe[39m([34m409[39m)[33m;[3
+9m
+    [90m   |[39m                        [31m^[39m
+    [90m 38|[39m   })[33m;[39m
+    [90m 39|[39m
+
+[31m[2mΓÄ»ΓÄ»ΓÄ»ΓÄ»ΓÄ»ΓÄ»ΓÄ»ΓÄ»ΓÄ»ΓÄ»ΓÄ»ΓÄ»ΓÄ»ΓÄ»ΓÄ»Γ
+Ä»ΓÄ»ΓÄ»ΓÄ»ΓÄ»ΓÄ»ΓÄ»ΓÄ»[6/11]ΓÄ»[22m[39m
+
+[41m[1m FAIL [22m[49m 
+src/__tests__/api/auth.test.ts[2m > [22mAuth API[2m 
+> [22mlogs in with correct credentials
+[31m[1mAssertionError[22m: expected 404 to be 200 
+// Object.is equality[39m
+
+[32m- Expected[39m
+[31m+ Received[39m
+
+[32m- 200[39m
+[31m+ 404[39m
+
+[36m [2mΓ¥»[22m 
+src/__tests__/api/auth.test.ts:[2m52:24[22m[39m
+    [90m 50|[39m       body[33m:[39m 
+[33mJSON[39m[33m.[39m[34mstringify[39m({ 
+email[33m,[39m password[33m:[39m 
+[32m'Test1234'[39m })[33m,[39m
+    [90m 51|[39m     })[33m;[39m
+    [90m 52|[39m     [34mexpect[39m(res[33m.[39ms
+tatus)[33m.[39m[34mtoBe[39m([34m200[39m)[33m;[3
+9m
+    [90m   |[39m                        [31m^[39m
+    [90m 53|[39m     authCookie [33m=[39m res[33m.
+[39mheaders[33m.[39m[35mget[39m([32m'set-cookie'
+[39m) [33m||[39m [32m''[39m[33m;[39m
+    [90m 54|[39m     [34mexpect[39m(authCookie)[33
+m.[39m[34mtoContain[39m([32m'token='[39m)[33m;[3
+9m
+
+[31m[2mΓÄ»ΓÄ»ΓÄ»ΓÄ»ΓÄ»ΓÄ»ΓÄ»ΓÄ»ΓÄ»ΓÄ»ΓÄ»ΓÄ»ΓÄ»ΓÄ»ΓÄ»Γ
+Ä»ΓÄ»ΓÄ»ΓÄ»ΓÄ»ΓÄ»ΓÄ»ΓÄ»[7/11]ΓÄ»[22m[39m
+
+[41m[1m FAIL [22m[49m 
+src/__tests__/api/auth.test.ts[2m > [22mAuth API[2m 
+> [22mrejects wrong password
+[31m[1mAssertionError[22m: expected 404 to be 401 
+// Object.is equality[39m
+
+[32m- Expected[39m
+[31m+ Received[39m
+
+[32m- 401[39m
+[31m+ 404[39m
+
+[36m [2mΓ¥»[22m 
+src/__tests__/api/auth.test.ts:[2m69:24[22m[39m
+    [90m 67|[39m       body[33m:[39m 
+[33mJSON[39m[33m.[39m[34mstringify[39m({ 
+email[33m,[39m password[33m:[39m 
+[32m'Wrong123'[39m })[33m,[39m
+    [90m 68|[39m     })[33m;[39m
+    [90m 69|[39m     [34mexpect[39m(res[33m.[39ms
+tatus)[33m.[39m[34mtoBe[39m([34m401[39m)[33m;[3
+9m
+    [90m   |[39m                        [31m^[39m
+    [90m 70|[39m     [35mconst[39m body 
+[33m=[39m [35mawait[39m 
+res[33m.[39m[34mjson[39m()[33m;[39m
+    [90m 71|[39m     [34mexpect[39m(body[33m.[39m
+error)[33m.[39m[34mtoBe[39m([32m'Invalid email or 
+password'[39m)[33m;[39m
+
+[31m[2mΓÄ»ΓÄ»ΓÄ»ΓÄ»ΓÄ»ΓÄ»ΓÄ»ΓÄ»ΓÄ»ΓÄ»ΓÄ»ΓÄ»ΓÄ»ΓÄ»ΓÄ»Γ
+Ä»ΓÄ»ΓÄ»ΓÄ»ΓÄ»ΓÄ»ΓÄ»ΓÄ»[8/11]ΓÄ»[22m[39m
+
+[41m[1m FAIL [22m[49m 
+src/__tests__/api/auth.test.ts[2m > [22mAuth API[2m 
+> [22mreturns current user with valid cookie
+[31m[1mAssertionError[22m: expected 404 to be 200 
+// Object.is equality[39m
+
+[32m- Expected[39m
+[31m+ Received[39m
+
+[32m- 200[39m
+[31m+ 404[39m
+
+[36m [2mΓ¥»[22m 
+src/__tests__/api/auth.test.ts:[2m78:24[22m[39m
+    [90m 76|[39m       headers[33m:[39m { 
+[33mCookie[39m[33m:[39m authCookie }[33m,[39m
+    [90m 77|[39m     })[33m;[39m
+    [90m 78|[39m     [34mexpect[39m(res[33m.[39ms
+tatus)[33m.[39m[34mtoBe[39m([34m200[39m)[33m;[3
+9m
+    [90m   |[39m                        [31m^[39m
+    [90m 79|[39m     [35mconst[39m body 
+[33m=[39m [35mawait[39m 
+res[33m.[39m[34mjson[39m()[33m;[39m
+    [90m 80|[39m     [34mexpect[39m(body[33m.[39m
+user)[33m.[39m[34mtoBeDefined[39m()[33m;[39m
+
+[31m[2mΓÄ»ΓÄ»ΓÄ»ΓÄ»ΓÄ»ΓÄ»ΓÄ»ΓÄ»ΓÄ»ΓÄ»ΓÄ»ΓÄ»ΓÄ»ΓÄ»ΓÄ»Γ
+Ä»ΓÄ»ΓÄ»ΓÄ»ΓÄ»ΓÄ»ΓÄ»ΓÄ»[9/11]ΓÄ»[22m[39m
+
+[41m[1m FAIL [22m[49m 
+src/__tests__/api/auth.test.ts[2m > [22mAuth API[2m 
+> [22mreturns 401 without cookie
+[31m[1mAssertionError[22m: expected 404 to be 401 
+// Object.is equality[39m
+
+[32m- Expected[39m
+[31m+ Received[39m
+
+[32m- 401[39m
+[31m+ 404[39m
+
+[36m [2mΓ¥»[22m 
+src/__tests__/api/auth.test.ts:[2m86:24[22m[39m
+    [90m 84|[39m   [34mit[39m([32m'returns 401 
+without cookie'[39m[33m,[39m [35masync[39m () 
+[33m=>[39m {
+    [90m 85|[39m     [35mconst[39m res [33m=[39m 
+[35mawait[39m [34mfetch[39m([32m`[39m[36m${[39m
+[33mBASE_URL[39m[36m}[39m[32m/api/auth/me`[39m)[
+33m;[39m
+    [90m 86|[39m     [34mexpect[39m(res[33m.[39ms
+tatus)[33m.[39m[34mtoBe[39m([34m401[39m)[33m;[3
+9m
+    [90m   |[39m                        [31m^[39m
+    [90m 87|[39m   })[33m;[39m
+    [90m 88|[39m
+
+[31m[2mΓÄ»ΓÄ»ΓÄ»ΓÄ»ΓÄ»ΓÄ»ΓÄ»ΓÄ»ΓÄ»ΓÄ»ΓÄ»ΓÄ»ΓÄ»ΓÄ»ΓÄ»Γ
+Ä»ΓÄ»ΓÄ»ΓÄ»ΓÄ»ΓÄ»ΓÄ»[10/11]ΓÄ»[22m[39m
+
+[41m[1m FAIL [22m[49m 
+src/__tests__/api/auth.test.ts[2m > [22mAuth API[2m 
+> [22mclears cookie on logout
+[31m[1mAssertionError[22m: expected 404 to be 200 
+// Object.is equality[39m
+
+[32m- Expected[39m
+[31m+ Received[39m
+
+[32m- 200[39m
+[31m+ 404[39m
+
+[36m [2mΓ¥»[22m 
+src/__tests__/api/auth.test.ts:[2m94:24[22m[39m
+    [90m 92|[39m       headers[33m:[39m { 
+[33mCookie[39m[33m:[39m authCookie[33m,[39m 
+[33mOrigin[39m[33m:[39m [33mORIGIN[39m 
+}[33m,[39m
+    [90m 93|[39m     })[33m;[39m
+    [90m 94|[39m     [34mexpect[39m(res[33m.[39ms
+tatus)[33m.[39m[34mtoBe[39m([34m200[39m)[33m;[3
+9m
+    [90m   |[39m                        [31m^[39m
+    [90m 95|[39m     [35mconst[39m setCookie 
+[33m=[39m res[33m.[39mheaders[33m.[39m[35mget[3
+9m([32m'set-cookie'[39m) [33m||[39m 
+[32m''[39m[33m;[39m
+    [90m 96|[39m     [34mexpect[39m(setCookie)[33m
+.[39m[34mtoContain[39m([32m'token='[39m)[33m;[39
+m
+
+[31m[2mΓÄ»ΓÄ»ΓÄ»ΓÄ»ΓÄ»ΓÄ»ΓÄ»ΓÄ»ΓÄ»ΓÄ»ΓÄ»ΓÄ»ΓÄ»ΓÄ»ΓÄ»Γ
+Ä»ΓÄ»ΓÄ»ΓÄ»ΓÄ»ΓÄ»ΓÄ»[11/11]ΓÄ»[22m[39m
+
+
+[2m Test Files [22m [1m[31m5 failed[39m[22m[2m | [22m[1m[32m2 passed[39m[22m[90m (7)[39m
+[2m      Tests [22m [1m[31m7 failed[39m[22m[2m | [22m[1m[32m29 passed[39m[22m[2m | [22m[33m38 skipped[39m[90m (74)[39m
+[2m   Start at [22m 23:43:24
+[2m   Duration [22m 3.09s[2m (transform 719ms, setup 0ms, import 1.40s, tests 5.50s, environment 2ms)[22m
+

@@ -20,7 +20,11 @@
       "Bash(taskkill //F //IM \"node.exe\" //FI \"WINDOWTITLE eq *next*\")",
       "Bash(curl -s -o /dev/null -w \"%{http_code}\" http://localhost:3000)",
       "Bash(curl -s -o /dev/null -w \"%{http_code}\" http://localhost:3000/login)",
-      "Bash(curl:*)"
+      "Bash(curl:*)",
+      "Bash(break)",
+      "Bash(npx tsx:*)",
+      "Bash(node -e ':*)",
+      "Bash(taskkill //F //IM node.exe)"
     ]
   }
 }

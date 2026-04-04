@@ -66,7 +66,7 @@ export default function CreatePost({ userAvatar, onPostCreated }: CreatePostProp
 
   async function uploadImage(file: File): Promise<string> {
     // Get signed params
-    const sigRes = await fetch('/api/upload/signature', { method: 'POST' });
+    const sigRes = await fetch('/api/upload/signature', { method: 'POST', headers: { Origin: window.location.origin } });
     if (!sigRes.ok) throw new Error('Failed to get upload signature');
     const { timestamp, signature, apiKey, cloudName, folder, allowedFormats, maxFileSize } = await sigRes.json();
 
@@ -108,7 +108,7 @@ export default function CreatePost({ userAvatar, onPostCreated }: CreatePostProp
 
       const res = await fetch('/api/posts', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: { 'Content-Type': 'application/json', Origin: window.location.origin },
         body: JSON.stringify({
           content: content.trim(),
           visibility,
