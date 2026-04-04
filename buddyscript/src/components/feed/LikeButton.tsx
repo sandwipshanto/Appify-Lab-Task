@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useRef } from 'react';
 
 interface LikeButtonProps {
   targetType: 'post' | 'comment';
@@ -8,21 +8,30 @@ interface LikeButtonProps {
   liked: boolean;
   likeCount: number;
   onLikeCountClick?: () => void;
+  /** Called immediately after the optimistic state flip with the new liked value */
+  onToggle?: (liked: boolean) => void;
 }
 
-export default function LikeButton({ targetType, targetId, liked: initialLiked, likeCount: initialCount, onLikeCountClick }: LikeButtonProps) {
+export default function LikeButton({ targetType, targetId, liked: initialLiked, likeCount: initialCount, onLikeCountClick, onToggle }: LikeButtonProps) {
   const [liked, setLiked] = useState(initialLiked);
   const [count, setCount] = useState(initialCount);
-  const [pending, setPending] = useState(false);
+  // Use a ref-based debounce instead of state-based locking so the button
+  // is never visually frozen. A 300 ms window is enough to prevent genuine
+  // double-taps without blocking the user after the optimistic update fires.
+  const debounceRef = useRef(false);
 
   async function handleToggle() {
-    if (pending) return;
+    if (debounceRef.current) return;
+    debounceRef.current = true;
+    // Release the debounce after a short window — well before the API
+    // responds — so rapid-but-intentional second clicks still work.
+    setTimeout(() => { debounceRef.current = false; }, 300);
 
-    // Optimistic update
+    // Optimistic update — happens instantly, no visual lock needed
     const wasLiked = liked;
+    onToggle?.(!wasLiked);
     setLiked(!wasLiked);
     setCount((c) => (wasLiked ? c - 1 : c + 1));
-    setPending(true);
 
     try {
       const url = targetType === 'post'
@@ -49,8 +58,6 @@ export default function LikeButton({ targetType, targetId, liked: initialLiked, 
       // Revert on network error
       setLiked(wasLiked);
       setCount((c) => (wasLiked ? c + 1 : c - 1));
-    } finally {
-      setPending(false);
     }
   }
 
@@ -60,7 +67,7 @@ export default function LikeButton({ targetType, targetId, liked: initialLiked, 
         className={`_feed_inner_timeline_reaction_emoji _feed_reaction${liked ? ' _feed_reaction_active' : ''}`}
         onClick={handleToggle}
         type="button"
-        style={{ cursor: pending ? 'default' : 'pointer' }}
+        style={{ cursor: 'pointer' }}
       >
         <span className="_feed_inner_timeline_reaction_link">
           <span>

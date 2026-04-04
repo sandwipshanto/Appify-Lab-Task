@@ -17,9 +17,16 @@ interface Comment {
   hasMoreReplies?: boolean;
 }
 
+interface CurrentUser {
+  id: string;
+  firstName: string;
+  lastName: string;
+  avatar: string | null;
+}
+
 interface CommentSectionProps {
   postId: string;
-  currentUserId: string;
+  currentUser: CurrentUser;
 }
 
 function timeAgo(dateStr: string): string {
@@ -33,7 +40,7 @@ function timeAgo(dateStr: string): string {
   return `${days}d ago`;
 }
 
-export default function CommentSection({ postId, currentUserId }: CommentSectionProps) {
+export default function CommentSection({ postId, currentUser }: CommentSectionProps) {
   const [comments, setComments] = useState<Comment[]>([]);
   const [loading, setLoading] = useState(true);
   const [cursor, setCursor] = useState<string | null>(null);
@@ -106,7 +113,7 @@ export default function CommentSection({ postId, currentUserId }: CommentSection
         <p style={{ textAlign: 'center', color: '#999', fontSize: '13px' }}>No comments yet</p>
       ) : (
         comments.map((comment) => (
-          <CommentCard key={comment.id} comment={comment} postId={postId} currentUserId={currentUserId} onDelete={markCommentDeleted} />
+          <CommentCard key={comment.id} comment={comment} postId={postId} currentUser={currentUser} onDelete={markCommentDeleted} />
         ))
       )}
 
@@ -119,7 +126,7 @@ export default function CommentSection({ postId, currentUserId }: CommentSection
   );
 }
 
-function CommentCard({ comment, postId, currentUserId, onDelete }: { comment: Comment; postId: string; currentUserId: string; onDelete: (id: string) => void }) {
+function CommentCard({ comment, postId, currentUser, onDelete }: { comment: Comment; postId: string; currentUser: CurrentUser; onDelete: (id: string) => void }) {
   const [showReplies, setShowReplies] = useState(!!comment.replies?.length);
   const [replies, setReplies] = useState<Comment[]>(comment.replies || []);
   const [hasMoreReplies, setHasMoreReplies] = useState(comment.hasMoreReplies || false);
@@ -129,8 +136,9 @@ function CommentCard({ comment, postId, currentUserId, onDelete }: { comment: Co
   const [showLikes, setShowLikes] = useState(false);
   const [deleting, setDeleting] = useState(false);
   const [deleted, setDeleted] = useState(comment.deleted);
+  const [likesPatch, setLikesPatch] = useState<{ action: 'add' | 'remove'; user: CurrentUser } | null>(null);
 
-  const isOwner = comment.authorId === currentUserId;
+  const isOwner = comment.authorId === currentUser.id;
 
   async function loadMoreReplies() {
     const params = replyCursor ? `?cursor=${replyCursor}` : '';
@@ -208,6 +216,12 @@ function CommentCard({ comment, postId, currentUserId, onDelete }: { comment: Co
                 liked={comment.liked}
                 likeCount={comment.likeCount}
                 onLikeCountClick={() => setShowLikes(true)}
+                onToggle={(nowLiked) =>
+                  setLikesPatch({
+                    action: nowLiked ? 'add' : 'remove',
+                    user: currentUser,
+                  })
+                }
               />
               <button type="button" onClick={() => setShowReplies(!showReplies)} style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#666', fontSize: '12px' }}>
                 Reply
@@ -225,7 +239,7 @@ function CommentCard({ comment, postId, currentUserId, onDelete }: { comment: Co
       {showReplies && (
         <div style={{ marginLeft: '42px', marginTop: '8px' }}>
           {replies.map((reply) => (
-            <ReplyCard key={reply.id} reply={reply} currentUserId={currentUserId} onDelete={handleReplyDelete} />
+            <ReplyCard key={reply.id} reply={reply} currentUser={currentUser} onDelete={handleReplyDelete} />
           ))}
           {hasMoreReplies && (
             <button onClick={loadMoreReplies} style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#377DFF', fontSize: '12px', padding: '4px 0' }}>
@@ -250,17 +264,18 @@ function CommentCard({ comment, postId, currentUserId, onDelete }: { comment: Co
       )}
 
       {showLikes && (
-        <LikesList targetType="comment" targetId={comment.id} onClose={() => setShowLikes(false)} />
+        <LikesList targetType="comment" targetId={comment.id} onClose={() => setShowLikes(false)} optimisticPatch={likesPatch} />
       )}
     </div>
   );
 }
 
-function ReplyCard({ reply, currentUserId, onDelete }: { reply: Comment; currentUserId: string; onDelete: (id: string) => void }) {
+function ReplyCard({ reply, currentUser, onDelete }: { reply: Comment; currentUser: CurrentUser; onDelete: (id: string) => void }) {
   const [showLikes, setShowLikes] = useState(false);
   const [deleting, setDeleting] = useState(false);
   const [deleted, setDeleted] = useState(reply.deleted);
-  const isOwner = reply.authorId === currentUserId;
+  const [likesPatch, setLikesPatch] = useState<{ action: 'add' | 'remove'; user: CurrentUser } | null>(null);
+  const isOwner = reply.authorId === currentUser.id;
 
   async function handleDelete() {
     if (!confirm('Delete this reply?')) return;
@@ -302,6 +317,12 @@ function ReplyCard({ reply, currentUserId, onDelete }: { reply: Comment; current
                 liked={reply.liked}
                 likeCount={reply.likeCount}
                 onLikeCountClick={() => setShowLikes(true)}
+                onToggle={(nowLiked) =>
+                  setLikesPatch({
+                    action: nowLiked ? 'add' : 'remove',
+                    user: currentUser,
+                  })
+                }
               />
               {isOwner && (
                 <button type="button" onClick={handleDelete} disabled={deleting} style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#ff4d4f', fontSize: '11px' }}>
@@ -313,7 +334,7 @@ function ReplyCard({ reply, currentUserId, onDelete }: { reply: Comment; current
         </div>
       </div>
       {showLikes && (
-        <LikesList targetType="comment" targetId={reply.id} onClose={() => setShowLikes(false)} />
+        <LikesList targetType="comment" targetId={reply.id} onClose={() => setShowLikes(false)} optimisticPatch={likesPatch} />
       )}
     </div>
   );

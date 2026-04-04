@@ -78,12 +78,12 @@ export default function PostFeed({ initialPosts, initialCursor, user }: PostFeed
           <div key={post.id}>
             <PostCard
               post={post}
-              currentUserId={user.id}
+              currentUser={user}
               onDelete={handleDelete}
               onToggleComments={toggleComments}
             />
             {expandedComments.has(post.id) && (
-              <CommentSection postId={post.id} currentUserId={user.id} />
+              <CommentSection postId={post.id} currentUser={user} />
             )}
           </div>
         ))

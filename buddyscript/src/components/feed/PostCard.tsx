@@ -7,7 +7,12 @@ import LikesList from './LikesList';
 
 interface PostCardProps {
   post: Post;
-  currentUserId: string;
+  currentUser: {
+    id: string;
+    firstName: string;
+    lastName: string;
+    avatar: string | null;
+  };
   onDelete: (postId: string) => void;
   onToggleComments?: (postId: string) => void;
 }
@@ -23,11 +28,12 @@ function timeAgo(dateStr: string): string {
   return `${days}d ago`;
 }
 
-export default function PostCard({ post, currentUserId, onDelete, onToggleComments }: PostCardProps) {
+export default function PostCard({ post, currentUser, onDelete, onToggleComments }: PostCardProps) {
   const [showLikes, setShowLikes] = useState(false);
   const [deleting, setDeleting] = useState(false);
   const [menuOpen, setMenuOpen] = useState(false);
-  const isOwner = post.authorId === currentUserId;
+  const [likesPatch, setLikesPatch] = useState<{ action: 'add' | 'remove'; user: { id: string; firstName: string; lastName: string; avatar: string | null } } | null>(null);
+  const isOwner = post.authorId === currentUser.id;
 
   async function handleDelete() {
     if (!confirm('Delete this post?')) return;
@@ -117,6 +123,12 @@ export default function PostCard({ post, currentUserId, onDelete, onToggleCommen
         liked={post.liked}
         likeCount={post.likeCount}
         onLikeCountClick={() => setShowLikes(true)}
+        onToggle={(nowLiked) =>
+          setLikesPatch({
+            action: nowLiked ? 'add' : 'remove',
+            user: currentUser,
+          })
+        }
       />
 
       <div className="_feed_inner_timeline_reaction" style={{ padding: '0 24px' }}>
@@ -142,6 +154,7 @@ export default function PostCard({ post, currentUserId, onDelete, onToggleCommen
           targetType="post"
           targetId={post.id}
           onClose={() => setShowLikes(false)}
+          optimisticPatch={likesPatch}
         />
       )}
     </div>

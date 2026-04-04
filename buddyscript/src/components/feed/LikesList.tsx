@@ -6,6 +6,8 @@ interface LikesListProps {
   targetType: 'post' | 'comment';
   targetId: string;
   onClose: () => void;
+  /** Instantly add or remove the current user from the displayed list */
+  optimisticPatch?: { action: 'add' | 'remove'; user: LikeUser } | null;
 }
 
 interface LikeUser {
@@ -15,7 +17,7 @@ interface LikeUser {
   avatar: string | null;
 }
 
-export default function LikesList({ targetType, targetId, onClose }: LikesListProps) {
+export default function LikesList({ targetType, targetId, onClose, optimisticPatch }: LikesListProps) {
   const [users, setUsers] = useState<LikeUser[]>([]);
   const [cursor, setCursor] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
@@ -85,16 +87,34 @@ export default function LikesList({ targetType, targetId, onClose }: LikesListPr
           <p style={{ textAlign: 'center', color: '#999' }}>No likes yet</p>
         ) : (
           <>
-            {users.map((u) => (
-              <div key={u.id} style={{ display: 'flex', alignItems: 'center', gap: '12px', padding: '8px 0' }}>
-                <img
-                  src={u.avatar || '/assets/images/profile.png'}
-                  alt={`${u.firstName} ${u.lastName}`}
-                  style={{ width: '36px', height: '36px', borderRadius: '50%', objectFit: 'cover' }}
-                />
-                <span>{u.firstName} {u.lastName}</span>
-              </div>
-            ))}
+            {(() => {
+              let displayed = users;
+              if (optimisticPatch) {
+                if (optimisticPatch.action === 'add') {
+                  // Prepend unless already present
+                  if (!displayed.some((u) => u.id === optimisticPatch.user.id)) {
+                    displayed = [optimisticPatch.user, ...displayed];
+                  }
+                } else {
+                  // Remove
+                  displayed = displayed.filter((u) => u.id !== optimisticPatch.user.id);
+                }
+              }
+              return displayed.length === 0 ? (
+                <p style={{ textAlign: 'center', color: '#999' }}>No likes yet</p>
+              ) : (
+                displayed.map((u) => (
+                  <div key={u.id} style={{ display: 'flex', alignItems: 'center', gap: '12px', padding: '8px 0' }}>
+                    <img
+                      src={u.avatar || '/assets/images/profile.png'}
+                      alt={`${u.firstName} ${u.lastName}`}
+                      style={{ width: '36px', height: '36px', borderRadius: '50%', objectFit: 'cover' }}
+                    />
+                    <span>{u.firstName} {u.lastName}</span>
+                  </div>
+                ))
+              );
+            })()}
             {hasMore && (
               <button
                 onClick={() => fetchLikes(cursor)}
