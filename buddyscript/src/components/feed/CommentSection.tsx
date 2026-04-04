@@ -22,6 +22,17 @@ interface CommentSectionProps {
   currentUserId: string;
 }
 
+function timeAgo(dateStr: string): string {
+  const diff = Date.now() - new Date(dateStr).getTime();
+  const mins = Math.floor(diff / 60000);
+  if (mins < 1) return 'just now';
+  if (mins < 60) return `${mins}m ago`;
+  const hrs = Math.floor(mins / 60);
+  if (hrs < 24) return `${hrs}h ago`;
+  const days = Math.floor(hrs / 24);
+  return `${days}d ago`;
+}
+
 export default function CommentSection({ postId, currentUserId }: CommentSectionProps) {
   const [comments, setComments] = useState<Comment[]>([]);
   const [loading, setLoading] = useState(true);
@@ -42,6 +53,16 @@ export default function CommentSection({ postId, currentUserId }: CommentSection
   }, [postId]);
 
   useEffect(() => { fetchComments(null); }, [fetchComments]);
+
+  function markCommentDeleted(commentId: string) {
+    setComments((prev) => prev.map((c) => {
+      if (c.id === commentId) return { ...c, content: null, deleted: true };
+      if (c.replies) {
+        return { ...c, replies: c.replies.map((r) => r.id === commentId ? { ...r, content: null, deleted: true } : r) };
+      }
+      return c;
+    }));
+  }
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
@@ -85,7 +106,7 @@ export default function CommentSection({ postId, currentUserId }: CommentSection
         <p style={{ textAlign: 'center', color: '#999', fontSize: '13px' }}>No comments yet</p>
       ) : (
         comments.map((comment) => (
-          <CommentCard key={comment.id} comment={comment} postId={postId} currentUserId={currentUserId} />
+          <CommentCard key={comment.id} comment={comment} postId={postId} currentUserId={currentUserId} onDelete={markCommentDeleted} />
         ))
       )}
 
@@ -98,7 +119,7 @@ export default function CommentSection({ postId, currentUserId }: CommentSection
   );
 }
 
-function CommentCard({ comment, postId, currentUserId }: { comment: Comment; postId: string; currentUserId: string }) {
+function CommentCard({ comment, postId, currentUserId, onDelete }: { comment: Comment; postId: string; currentUserId: string; onDelete: (id: string) => void }) {
   const [showReplies, setShowReplies] = useState(!!comment.replies?.length);
   const [replies, setReplies] = useState<Comment[]>(comment.replies || []);
   const [hasMoreReplies, setHasMoreReplies] = useState(comment.hasMoreReplies || false);
@@ -107,6 +128,7 @@ function CommentCard({ comment, postId, currentUserId }: { comment: Comment; pos
   const [submittingReply, setSubmittingReply] = useState(false);
   const [showLikes, setShowLikes] = useState(false);
   const [deleting, setDeleting] = useState(false);
+  const [deleted, setDeleted] = useState(comment.deleted);
 
   const isOwner = comment.authorId === currentUserId;
 
@@ -145,10 +167,19 @@ function CommentCard({ comment, postId, currentUserId }: { comment: Comment; pos
     if (!confirm('Delete this comment?')) return;
     setDeleting(true);
     try {
-      await fetch(`/api/comments/${comment.id}`, { method: 'DELETE' });
+      const res = await fetch(`/api/comments/${comment.id}`, { method: 'DELETE' });
+      if (res.ok) {
+        setDeleted(true);
+        onDelete(comment.id);
+      }
     } finally {
       setDeleting(false);
     }
+  }
+
+  function handleReplyDelete(replyId: string) {
+    setReplies((prev) => prev.map((r) => r.id === replyId ? { ...r, content: null, deleted: true } : r));
+    onDelete(replyId);
   }
 
   return (
@@ -161,35 +192,40 @@ function CommentCard({ comment, postId, currentUserId }: { comment: Comment; pos
         />
         <div style={{ flex: 1 }}>
           <div style={{ background: '#f5f5f5', borderRadius: '12px', padding: '8px 12px' }}>
-            <strong style={{ fontSize: '13px' }}>{comment.author.firstName} {comment.author.lastName}</strong>
-            <p style={{ margin: '2px 0 0', fontSize: '13px', color: comment.deleted ? '#999' : '#333' }}>
-              {comment.deleted ? <em>This comment has been deleted</em> : comment.content}
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+              <strong style={{ fontSize: '13px' }}>{comment.author.firstName} {comment.author.lastName}</strong>
+              <span style={{ fontSize: '11px', color: '#999' }}>{timeAgo(comment.createdAt)}</span>
+            </div>
+            <p style={{ margin: '2px 0 0', fontSize: '13px', color: deleted ? '#999' : '#333' }}>
+              {deleted ? <em>This comment has been deleted</em> : comment.content}
             </p>
           </div>
-          <div style={{ display: 'flex', gap: '12px', alignItems: 'center', marginTop: '4px', fontSize: '12px', color: '#999' }}>
-            <LikeButton
-              targetType="comment"
-              targetId={comment.id}
-              liked={comment.liked}
-              likeCount={comment.likeCount}
-              onLikeCountClick={() => setShowLikes(true)}
-            />
-            <button type="button" onClick={() => setShowReplies(!showReplies)} style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#666', fontSize: '12px' }}>
-              Reply
-            </button>
-            {isOwner && !comment.deleted && (
-              <button type="button" onClick={handleDelete} disabled={deleting} style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#ff4d4f', fontSize: '12px' }}>
-                {deleting ? '...' : 'Delete'}
+          {!deleted && (
+            <div style={{ display: 'flex', gap: '12px', alignItems: 'center', marginTop: '4px', fontSize: '12px', color: '#999' }}>
+              <LikeButton
+                targetType="comment"
+                targetId={comment.id}
+                liked={comment.liked}
+                likeCount={comment.likeCount}
+                onLikeCountClick={() => setShowLikes(true)}
+              />
+              <button type="button" onClick={() => setShowReplies(!showReplies)} style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#666', fontSize: '12px' }}>
+                Reply
               </button>
-            )}
-          </div>
+              {isOwner && (
+                <button type="button" onClick={handleDelete} disabled={deleting} style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#ff4d4f', fontSize: '12px' }}>
+                  {deleting ? '...' : 'Delete'}
+                </button>
+              )}
+            </div>
+          )}
         </div>
       </div>
 
       {showReplies && (
         <div style={{ marginLeft: '42px', marginTop: '8px' }}>
           {replies.map((reply) => (
-            <ReplyCard key={reply.id} reply={reply} currentUserId={currentUserId} />
+            <ReplyCard key={reply.id} reply={reply} currentUserId={currentUserId} onDelete={handleReplyDelete} />
           ))}
           {hasMoreReplies && (
             <button onClick={loadMoreReplies} style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#377DFF', fontSize: '12px', padding: '4px 0' }}>
@@ -220,16 +256,21 @@ function CommentCard({ comment, postId, currentUserId }: { comment: Comment; pos
   );
 }
 
-function ReplyCard({ reply, currentUserId }: { reply: Comment; currentUserId: string }) {
+function ReplyCard({ reply, currentUserId, onDelete }: { reply: Comment; currentUserId: string; onDelete: (id: string) => void }) {
   const [showLikes, setShowLikes] = useState(false);
   const [deleting, setDeleting] = useState(false);
+  const [deleted, setDeleted] = useState(reply.deleted);
   const isOwner = reply.authorId === currentUserId;
 
   async function handleDelete() {
     if (!confirm('Delete this reply?')) return;
     setDeleting(true);
     try {
-      await fetch(`/api/comments/${reply.id}`, { method: 'DELETE' });
+      const res = await fetch(`/api/comments/${reply.id}`, { method: 'DELETE' });
+      if (res.ok) {
+        setDeleted(true);
+        onDelete(reply.id);
+      }
     } finally {
       setDeleting(false);
     }
@@ -245,25 +286,30 @@ function ReplyCard({ reply, currentUserId }: { reply: Comment; currentUserId: st
         />
         <div style={{ flex: 1 }}>
           <div style={{ background: '#f0f0f0', borderRadius: '10px', padding: '6px 10px' }}>
-            <strong style={{ fontSize: '12px' }}>{reply.author.firstName} {reply.author.lastName}</strong>
-            <p style={{ margin: '2px 0 0', fontSize: '12px', color: reply.deleted ? '#999' : '#333' }}>
-              {reply.deleted ? <em>This reply has been deleted</em> : reply.content}
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+              <strong style={{ fontSize: '12px' }}>{reply.author.firstName} {reply.author.lastName}</strong>
+              <span style={{ fontSize: '10px', color: '#999' }}>{timeAgo(reply.createdAt)}</span>
+            </div>
+            <p style={{ margin: '2px 0 0', fontSize: '12px', color: deleted ? '#999' : '#333' }}>
+              {deleted ? <em>This reply has been deleted</em> : reply.content}
             </p>
           </div>
-          <div style={{ display: 'flex', gap: '12px', alignItems: 'center', marginTop: '2px', fontSize: '11px' }}>
-            <LikeButton
-              targetType="comment"
-              targetId={reply.id}
-              liked={reply.liked}
-              likeCount={reply.likeCount}
-              onLikeCountClick={() => setShowLikes(true)}
-            />
-            {isOwner && !reply.deleted && (
-              <button type="button" onClick={handleDelete} disabled={deleting} style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#ff4d4f', fontSize: '11px' }}>
-                {deleting ? '...' : 'Delete'}
-              </button>
-            )}
-          </div>
+          {!deleted && (
+            <div style={{ display: 'flex', gap: '12px', alignItems: 'center', marginTop: '2px', fontSize: '11px' }}>
+              <LikeButton
+                targetType="comment"
+                targetId={reply.id}
+                liked={reply.liked}
+                likeCount={reply.likeCount}
+                onLikeCountClick={() => setShowLikes(true)}
+              />
+              {isOwner && (
+                <button type="button" onClick={handleDelete} disabled={deleting} style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#ff4d4f', fontSize: '11px' }}>
+                  {deleting ? '...' : 'Delete'}
+                </button>
+              )}
+            </div>
+          )}
         </div>
       </div>
       {showLikes && (

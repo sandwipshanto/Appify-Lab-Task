@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react';
 
 interface LikesListProps {
   targetType: 'post' | 'comment';
@@ -39,18 +39,25 @@ export default function LikesList({ targetType, targetId, onClose }: LikesListPr
     fetchLikes(null);
   }, [fetchLikes]);
 
+  const dialogRef = useRef<HTMLDivElement>(null);
+
   useEffect(() => {
     function handleKeyDown(e: KeyboardEvent) {
       if (e.key === 'Escape') onClose();
     }
     document.addEventListener('keydown', handleKeyDown);
+    // Focus the dialog on mount for accessibility
+    dialogRef.current?.focus();
     return () => document.removeEventListener('keydown', handleKeyDown);
   }, [onClose]);
 
   return (
     <div
       role="dialog"
+      aria-modal="true"
       aria-label="People who liked this"
+      ref={dialogRef}
+      tabIndex={-1}
       style={{
         position: 'fixed', top: 0, left: 0, right: 0, bottom: 0,
         background: 'rgba(0,0,0,0.5)', zIndex: 1050,
