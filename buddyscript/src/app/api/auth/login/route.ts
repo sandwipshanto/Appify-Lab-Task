@@ -1,6 +1,6 @@
 import { NextResponse } from 'next/server';
 import { prisma } from '@/lib/db';
-import { comparePassword, hashPassword, setAuthCookie } from '@/lib/auth';
+import { comparePassword, setAuthCookie } from '@/lib/auth';
 import { validateLogin } from '@/lib/validators';
 import { loginRateLimit, getClientIP } from '@/lib/rate-limit';
 

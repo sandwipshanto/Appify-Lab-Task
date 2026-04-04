@@ -34,7 +34,7 @@ export async function DELETE(
 
     // Atomic: soft delete + decrement post's commentCount
     // Use updateMany with deletedAt IS NULL to prevent concurrent double-decrement
-    const result = await prisma.$transaction(async (tx) => {
+    await prisma.$transaction(async (tx) => {
       const updated = await tx.comment.updateMany({
         where: { id: commentId, deletedAt: null },
         data: { deletedAt: new Date() },
