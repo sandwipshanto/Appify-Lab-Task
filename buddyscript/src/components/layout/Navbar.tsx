@@ -83,7 +83,7 @@ export default function Navbar({ user }: NavbarProps) {
           <div className="_header_nav_profile">
             <div className="_header_nav_profile_image">
               <img
-                src={user.avatar || '/assets/images/profile.png'}
+                src={user.avatar || '/assets/images/default_avatar.png'}
                 alt="Profile"
                 className="_nav_profile_img"
               />
@@ -104,7 +104,7 @@ export default function Navbar({ user }: NavbarProps) {
                 <div className="_nav_profile_dropdown_info">
                   <div className="_nav_profile_dropdown_image">
                     <img
-                      src={user.avatar || '/assets/images/profile.png'}
+                      src={user.avatar || '/assets/images/default_avatar.png'}
                       alt="Profile"
                       className="_nav_drop_img"
                     />

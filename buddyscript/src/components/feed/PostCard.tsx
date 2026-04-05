@@ -54,7 +54,7 @@ export default function PostCard({ post, currentUser, onDelete, onToggleComments
           <div className="_feed_inner_timeline_post_box">
             <div className="_feed_inner_timeline_post_box_image">
               <img
-                src={post.author.avatar || '/assets/images/post_img.png'}
+                src={post.author.avatar || '/assets/images/default_avatar.png'}
                 alt={`${post.author.firstName} ${post.author.lastName}`}
                 className="_post_img"
               />

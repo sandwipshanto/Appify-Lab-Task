@@ -3,6 +3,7 @@ import { prisma } from '@/lib/db';
 import { hashPassword, setAuthCookie } from '@/lib/auth';
 import { validateRegistration } from '@/lib/validators';
 import { registerRateLimit, getClientIP } from '@/lib/rate-limit';
+import { generateAvatarUrl } from '@/lib/avatar';
 
 export async function POST(request: Request) {
   const ip = getClientIP(request);
@@ -25,11 +26,12 @@ export async function POST(request: Request) {
   const { firstName, lastName, email, password } = validation.data;
 
   const hashedPassword = await hashPassword(password);
+  const avatar = generateAvatarUrl(firstName, lastName);
 
   let user;
   try {
     user = await prisma.user.create({
-      data: { firstName, lastName, email, password: hashedPassword },
+      data: { firstName, lastName, email, password: hashedPassword, avatar },
     });
   } catch (error: unknown) {
     // Handle unique constraint violation (race condition or duplicate)
@@ -46,3 +48,4 @@ export async function POST(request: Request) {
     { status: 201 }
   );
 }
+

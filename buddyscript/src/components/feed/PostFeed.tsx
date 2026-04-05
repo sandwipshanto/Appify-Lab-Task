@@ -46,7 +46,7 @@ export default function PostFeed({ initialPosts, initialCursor, user }: PostFeed
   const { sentinelRef, isLoading } = useInfiniteScroll(loadMore, hasMore);
 
   function handlePostCreated(post: Post) {
-    setPosts((prev) => [post, ...prev]);
+    setPosts((prev) => [{ ...post, liked: false }, ...prev]);
   }
 
   function handleDelete(postId: string) {

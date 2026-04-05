@@ -106,7 +106,7 @@ export default function LikesList({ targetType, targetId, onClose, optimisticPat
                 displayed.map((u) => (
                   <div key={u.id} style={{ display: 'flex', alignItems: 'center', gap: '12px', padding: '8px 0' }}>
                     <img
-                      src={u.avatar || '/assets/images/profile.png'}
+                      src={u.avatar || '/assets/images/default_avatar.png'}
                       alt={`${u.firstName} ${u.lastName}`}
                       style={{ width: '36px', height: '36px', borderRadius: '50%', objectFit: 'cover' }}
                     />

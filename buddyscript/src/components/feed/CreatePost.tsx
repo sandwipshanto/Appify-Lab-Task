@@ -68,7 +68,7 @@ export default function CreatePost({ userAvatar, onPostCreated }: CreatePostProp
     // Get signed params
     const sigRes = await fetch('/api/upload/signature', { method: 'POST', headers: { Origin: window.location.origin } });
     if (!sigRes.ok) throw new Error('Failed to get upload signature');
-    const { timestamp, signature, apiKey, cloudName, folder, allowedFormats, maxFileSize } = await sigRes.json();
+    const { timestamp, signature, apiKey, cloudName, folder } = await sigRes.json();
 
     // Upload to Cloudinary
     const formData = new FormData();
@@ -77,15 +77,16 @@ export default function CreatePost({ userAvatar, onPostCreated }: CreatePostProp
     formData.append('signature', signature);
     formData.append('api_key', apiKey);
     formData.append('folder', folder);
-    formData.append('allowed_formats', allowedFormats);
-    formData.append('max_file_size', String(maxFileSize));
 
     const uploadRes = await fetch(`https://api.cloudinary.com/v1_1/${cloudName}/image/upload`, {
       method: 'POST',
       body: formData,
     });
 
-    if (!uploadRes.ok) throw new Error('Image upload failed');
+    if (!uploadRes.ok) {
+      const errData = await uploadRes.json().catch(() => null);
+      throw new Error(errData?.error?.message || 'Image upload failed');
+    }
     const data = await uploadRes.json();
     return data.secure_url;
   }
@@ -129,8 +130,8 @@ export default function CreatePost({ userAvatar, onPostCreated }: CreatePostProp
       setContent('');
       setVisibility('PUBLIC');
       removeImage();
-    } catch {
-      setError('Something went wrong. Please try again.');
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Something went wrong. Please try again.');
     } finally {
       setSubmitting(false);
       setUploading(false);
@@ -143,7 +144,7 @@ export default function CreatePost({ userAvatar, onPostCreated }: CreatePostProp
         <div className="_feed_inner_text_area_box">
           <div className="_feed_inner_text_area_box_image">
             <img
-              src={userAvatar || '/assets/images/txt_img.png'}
+              src={userAvatar || '/assets/images/default_avatar.png'}
               alt="Your avatar"
               className="_txt_img"
             />

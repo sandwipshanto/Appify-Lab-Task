@@ -18,11 +18,9 @@ export async function POST(request: Request) {
 
     const timestamp = Math.round(Date.now() / 1000);
     const folder = 'buddyscript';
-    const params = {
+    const params: Record<string, string | number> = {
       timestamp,
       folder,
-      allowed_formats: 'jpg,png,gif,webp',
-      max_file_size: 5242880,
     };
 
     const signature = cloudinary.utils.api_sign_request(
@@ -36,8 +34,6 @@ export async function POST(request: Request) {
       apiKey: process.env.CLOUDINARY_API_KEY,
       cloudName: process.env.NEXT_PUBLIC_CLOUDINARY_CLOUD_NAME,
       folder,
-      allowedFormats: params.allowed_formats,
-      maxFileSize: params.max_file_size,
     });
   } catch (error) {
     if (error instanceof Response) return error;

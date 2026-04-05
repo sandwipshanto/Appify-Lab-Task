@@ -194,7 +194,7 @@ function CommentCard({ comment, postId, currentUser, onDelete }: { comment: Comm
     <div style={{ marginBottom: '12px', paddingLeft: '0' }}>
       <div style={{ display: 'flex', gap: '10px', alignItems: 'flex-start' }}>
         <img
-          src={comment.author.avatar || '/assets/images/profile.png'}
+          src={comment.author.avatar || '/assets/images/default_avatar.png'}
           alt={`${comment.author.firstName}`}
           style={{ width: '32px', height: '32px', borderRadius: '50%', objectFit: 'cover', marginTop: '2px' }}
         />
@@ -295,7 +295,7 @@ function ReplyCard({ reply, currentUser, onDelete }: { reply: Comment; currentUs
     <div style={{ marginBottom: '8px' }}>
       <div style={{ display: 'flex', gap: '8px', alignItems: 'flex-start' }}>
         <img
-          src={reply.author.avatar || '/assets/images/profile.png'}
+          src={reply.author.avatar || '/assets/images/default_avatar.png'}
           alt={`${reply.author.firstName}`}
           style={{ width: '28px', height: '28px', borderRadius: '50%', objectFit: 'cover', marginTop: '2px' }}
         />
