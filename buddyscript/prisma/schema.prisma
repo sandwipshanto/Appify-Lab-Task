@@ -26,6 +26,7 @@ model User {
   comments     Comment[]
   postLikes    PostLike[]
   commentLikes CommentLike[]
+  postShares   PostShare[]
 
   @@index([createdAt])
 }
@@ -45,6 +46,7 @@ model Post {
   author   User       @relation(fields: [authorId], references: [id], onDelete: Cascade)
   comments Comment[]
   likes    PostLike[]
+  shares   PostShare[]
 
   @@index([authorId])
   @@index([createdAt(sort: Desc), id(sort: Desc)])
@@ -98,4 +100,17 @@ model CommentLike {
 
   @@unique([userId, commentId])
   @@index([commentId, createdAt(sort: Desc), id(sort: Desc)])
+}
+
+model PostShare {
+  id        String   @id @default(uuid())
+  userId    String
+  postId    String
+  createdAt DateTime @default(now())
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+  post Post @relation(fields: [postId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, postId])
+  @@index([postId, createdAt(sort: Desc), id(sort: Desc)])
 }

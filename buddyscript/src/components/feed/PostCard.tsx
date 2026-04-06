@@ -29,6 +29,8 @@ export default function PostCard({ post, currentUser, onDelete, onToggleComments
   const [menuOpen, setMenuOpen] = useState(false);
   const [showConfirm, setShowConfirm] = useState(false);
   const [showLightbox, setShowLightbox] = useState(false);
+  const [localShareCount, setLocalShareCount] = useState(post.shareCount || 0);
+  const [hasShared, setHasShared] = useState(post.shared || false);
   const [likesPatch, setLikesPatch] = useState<{ action: 'add' | 'remove'; user: { id: string; firstName: string; lastName: string; avatar: string | null } } | null>(null);
   const isOwner = post.authorId === currentUser.id;
 
@@ -180,7 +182,7 @@ export default function PostCard({ post, currentUser, onDelete, onToggleComments
                   navigator.clipboard.writeText(`${window.location.origin}/post/${post.id}`);
                   toast.success('Link copied');
                 }} style={{ cursor: 'pointer' }}>
-                  <span>{post.shareCount || 0}</span> Share
+                  <span>{localShareCount}</span> Share{localShareCount !== 1 ? 's' : ''}
                 </p>
               </div>
             </div>
@@ -228,10 +230,26 @@ export default function PostCard({ post, currentUser, onDelete, onToggleComments
                 </span>
               </button>
               <button
-                className="_feed_inner_timeline_reaction_share _feed_reaction"
+                className={`_feed_inner_timeline_reaction_share _feed_reaction${hasShared ? ' _feed_reaction_active' : ''}`}
                 type="button"
-                onClick={() => {
+                onClick={async () => {
                   navigator.clipboard.writeText(`${window.location.origin}/post/${post.id}`);
+                  if (!hasShared) {
+                    setHasShared(true);
+                    setLocalShareCount((c) => c + 1);
+                    try {
+                      const res = await fetch(`/api/posts/${post.id}/share`, {
+                        method: 'POST',
+                        headers: { Origin: window.location.origin },
+                      });
+                      if (res.ok) {
+                        const data = await res.json();
+                        setLocalShareCount(data.shareCount);
+                      }
+                    } catch {
+                      // Optimistic update stays — no rollback needed for shares
+                    }
+                  }
                   toast.success('Link copied to clipboard');
                 }}
               >

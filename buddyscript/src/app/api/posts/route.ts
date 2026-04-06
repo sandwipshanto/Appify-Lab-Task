@@ -69,7 +69,7 @@ export async function POST(request: Request) {
 
     const { _count, ...rest } = post as any;
     return NextResponse.json(
-      { post: { ...rest, liked: false, likes: [], commentCount: _count.comments, likeCount: _count.likes } },
+      { post: { ...rest, liked: false, shared: false, likes: [], commentCount: _count.comments, likeCount: _count.likes } },
       { status: 201 }
     );
   } catch (error) {

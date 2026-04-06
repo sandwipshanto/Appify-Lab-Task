@@ -10,7 +10,7 @@ const POST_SELECT = (userId: string) => ({
   authorId: true,
   author: { select: { id: true, firstName: true, lastName: true, avatar: true } },
   likes: { select: { user: { select: { id: true, firstName: true, avatar: true } } }, orderBy: { createdAt: 'desc' as const }, take: 5 },
-  _count: { select: { comments: { where: { deletedAt: null } }, likes: true } },
+  _count: { select: { comments: { where: { deletedAt: null } }, likes: true, shares: true } },
 });
 
 export async function getFeedPage(
@@ -63,11 +63,18 @@ export async function getFeedPage(
   });
   const likedPostIds = new Set(userLikes.map((ul) => ul.postId));
 
+  const userShares = await prisma.postShare.findMany({
+    where: { userId, postId: { in: postIds } },
+    select: { postId: true },
+  });
+  const sharedPostIds = new Set(userShares.map((us) => us.postId));
+
   const postsWithLiked = merged.map((p) => {
     const { _count, ...rest } = p;
     return {
       ...rest,
       liked: likedPostIds.has(p.id),
+      shared: sharedPostIds.has(p.id),
       commentCount: _count.comments,
       likeCount: _count.likes,
     };

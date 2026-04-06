@@ -26,6 +26,7 @@ export interface Post {
     avatar: string | null;
   };
   liked: boolean;
+  shared: boolean;
   likes?: {
     user: {
       id: string;
