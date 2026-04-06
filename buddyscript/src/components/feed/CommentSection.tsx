@@ -51,12 +51,12 @@ function CharCounter({ current, max }: { current: number; max: number }) {
   );
 }
 
-/* ── Ctrl+Enter submit handler ── */
+/* ── Enter to Submit, Shift+Enter for newline ── */
 function handleKeyboardSubmit(
   e: React.KeyboardEvent<HTMLTextAreaElement>,
   onSubmit: () => void
 ) {
-  if ((e.ctrlKey || e.metaKey) && e.key === 'Enter') {
+  if (e.key === 'Enter' && !e.shiftKey) {
     e.preventDefault();
     onSubmit();
   }
@@ -131,45 +131,59 @@ export default function CommentSection({ postId, currentUser }: CommentSectionPr
   }
 
   return (
-    <div className="_b_radious6 _padd_b24 _padd_r24 _padd_l24 _mar_b16" style={{ background: 'var(--bg2, #fff)' }}>
-      <form onSubmit={handleSubmit} style={{ display: 'flex', gap: '8px', marginBottom: '16px', paddingTop: '16px' }}>
-        <div style={{ flex: 1, position: 'relative' }}>
-          <textarea
-            ref={commentInputRef}
-            className="form-control"
-            placeholder="Write a comment..."
-            value={newComment}
-            onChange={(e) => setNewComment(e.target.value)}
-            onKeyDown={(e) => handleKeyboardSubmit(e, () => handleSubmit())}
-            maxLength={MAX_COMMENT_LENGTH}
-            rows={1}
-            style={{ resize: 'none', overflow: 'hidden' }}
-          />
-          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginTop: '4px' }}>
-            <span style={{ fontSize: '11px', color: '#bbb' }}>Ctrl+Enter to send</span>
-            <CharCounter current={newComment.length} max={MAX_COMMENT_LENGTH} />
+    <div className="_feed_inner_timeline_cooment_area _b_radious6 _padd_b24 _padd_r24 _padd_l24 _mar_b16" style={{ background: 'var(--bg2, #fff)' }}>
+      <div className="_feed_inner_comment_box">
+        <form className="_feed_inner_comment_box_form" onSubmit={handleSubmit}>
+          <div className="_feed_inner_comment_box_content">
+            <div className="_feed_inner_comment_box_content_image">
+              <img src={currentUser.avatar || '/assets/images/default_avatar.png'} alt="" className="_comment_img" />
+            </div>
+            <div className="_feed_inner_comment_box_content_txt" style={{ position: 'relative', width: '100%', flex: 1 }}>
+              <textarea
+                ref={commentInputRef}
+                className="form-control _comment_textarea"
+                placeholder="Write a comment..."
+                value={newComment}
+                onChange={(e) => setNewComment(e.target.value)}
+                onKeyDown={(e) => handleKeyboardSubmit(e, () => handleSubmit())}
+                maxLength={MAX_COMMENT_LENGTH}
+                rows={1}
+                style={{ resize: 'none', overflow: 'hidden', minHeight: '38px', paddingTop: '8px' }}
+              />
+              <div style={{ position: 'absolute', right: '10px', top: '50%', transform: 'translateY(-50%)' }}>
+                 <CharCounter current={newComment.length} max={MAX_COMMENT_LENGTH} />
+              </div>
+            </div>
           </div>
-        </div>
-        <button type="submit" className="_btn1" disabled={submitting || !newComment.trim()} style={{ padding: '6px 16px', whiteSpace: 'nowrap', alignSelf: 'flex-start' }}>
-          {submitting ? '...' : 'Send'}
-        </button>
-      </form>
+          <div className="_feed_inner_comment_box_icon">
+            <button type="submit" disabled={submitting || !newComment.trim()} className="_feed_inner_comment_box_icon_btn" style={{ opacity: (!newComment.trim() || submitting) ? 0.5 : 1 }}>
+               {submitting ? '...' : (
+                 <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" fill="none" viewBox="0 0 16 16"><path fill="#377DFF" d="M14.667 8L1.333 14.667V9.333L10.667 8 1.333 6.667V1.333L14.667 8z"/></svg>
+               )}
+            </button>
+          </div>
+        </form>
+      </div>
 
-      {loading ? (
-        <p style={{ textAlign: 'center', color: '#999' }}>Loading comments...</p>
-      ) : comments.length === 0 ? (
-        <p style={{ textAlign: 'center', color: '#999', fontSize: '13px' }}>No comments yet</p>
-      ) : (
-        comments.map((comment) => (
-          <CommentCard key={comment.id} comment={comment} postId={postId} currentUser={currentUser} onDelete={markCommentDeleted} />
-        ))
-      )}
+      <div className="_timline_comment_main">
+        {hasMore && (
+          <div className="_previous_comment">
+            <button type="button" onClick={() => fetchComments(cursor)} className="_previous_comment_txt">
+              View previous comments
+            </button>
+          </div>
+        )}
 
-      {hasMore && (
-        <button onClick={() => fetchComments(cursor)} style={{ width: '100%', padding: '8px', border: '1px solid #eee', borderRadius: '4px', background: 'transparent', cursor: 'pointer', marginTop: '8px', color: '#666' }}>
-          Load more comments
-        </button>
-      )}
+        {loading ? (
+          <p style={{ textAlign: 'center', color: '#999', padding: '16px 0' }}>Loading comments...</p>
+        ) : comments.length === 0 ? (
+          <p style={{ textAlign: 'center', color: '#999', fontSize: '13px', padding: '16px 0' }}>No comments yet</p>
+        ) : (
+          comments.map((comment) => (
+            <CommentCard key={comment.id} comment={comment} postId={postId} currentUser={currentUser} onDelete={markCommentDeleted} />
+          ))
+        )}
+      </div>
     </div>
   );
 }
@@ -293,6 +307,9 @@ function CommentCard({ comment, postId, currentUser, onDelete }: { comment: Comm
                 <div className="_total_react">
                   <span className="_reaction_like">
                     <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="feather feather-thumbs-up"><path d="M14 9V5a3 3 0 0 0-3-3l-4 9v11h11.28a2 2 0 0 0 2-1.7l1.38-9a2 2 0 0 0-2-2.3zM7 22H4a2 2 0 0 1-2-2v-7a2 2 0 0 1 2-2h3"></path></svg>
+                  </span>
+                  <span className="_reaction_heart">
+                    <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="feather feather-heart"><path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z"></path></svg>
                   </span>
                 </div>
                 <span className="_total">{comment.likeCount}</span>
@@ -447,6 +464,9 @@ function ReplyCard({ reply, currentUser, onDelete }: { reply: Comment; currentUs
                 <div className="_total_react">
                   <span className="_reaction_like">
                     <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="feather feather-thumbs-up"><path d="M14 9V5a3 3 0 0 0-3-3l-4 9v11h11.28a2 2 0 0 0 2-1.7l1.38-9a2 2 0 0 0-2-2.3zM7 22H4a2 2 0 0 1-2-2v-7a2 2 0 0 1 2-2h3"></path></svg>
+                  </span>
+                  <span className="_reaction_heart">
+                    <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="feather feather-heart"><path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z"></path></svg>
                   </span>
                 </div>
                 <span className="_total">{reply.likeCount}</span>

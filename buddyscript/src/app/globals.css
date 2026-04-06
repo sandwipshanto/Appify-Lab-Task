@@ -1,0 +1,16 @@
+/* Globally force all UI representations of user avatars to be round */
+._txt_img,
+._comment_img,
+._comment_img1,
+._post_img,
+._profile_img,
+._nav_profile_img,
+._nav_drop_img,
+._drp_auth_img,
+._react_img,
+._react_img1,
+._box_ppl_img,
+._ppl_img {
+  border-radius: 50% !important;
+  object-fit: cover !important;
+}

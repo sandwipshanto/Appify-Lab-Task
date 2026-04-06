@@ -1,6 +1,7 @@
 import type { Metadata } from 'next';
 import { validateEnv } from '@/lib/env';
 import { Toaster } from 'react-hot-toast';
+import './globals.css';
 
 validateEnv();
 
