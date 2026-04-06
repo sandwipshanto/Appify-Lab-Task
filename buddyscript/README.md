@@ -59,10 +59,53 @@ A full-stack social media application built with Next.js 14, featuring authentic
 - Password hashing with bcrypt (10 rounds)
 
 ### UI/UX
-- Optimistic UI for likes with server-returned final state (reverts on error)
-- Infinite scroll via Intersection Observer
-- Original HTML/CSS design preserved faithfully
-- Accessible likes modal with `role="dialog"`, `aria-modal`, keyboard dismiss
+Beyond faithfully preserving the original HTML/CSS design, the app includes production-grade UX polish throughout:
+
+**Authentication Forms**
+- Password visibility toggle (eye icon) on login and both registration password fields
+- Real-time inline validation on blur — per-field error (✗) and success (✓) indicators
+- Live password-match indicator on the repeat password field
+- Error border highlighting (red border + subtle box-shadow) on invalid fields
+- Loading spinner on submit buttons ("Logging in…" / "Registering…") with button disabled during request
+- Proper `autoComplete` attributes (`email`, `current-password`, `new-password`, `given-name`) for password manager support
+- Terms & conditions agreement gate before registration
+
+**Feed Interactions**
+- Optimistic UI for likes with 300ms debounce, server-returned final state, and automatic revert on error
+- Optimistic likes list — "Who liked this" modal instantly patches with current user on like/unlike
+- Optimistic share counter with clipboard copy + server-side share tracking
+- New post slide-in animation (fade + translateY) with auto-scroll to top of feed
+- Skeleton loaders (shimmer animation) during infinite scroll loading
+- Auto-expanding textareas for post composer, comments, and replies
+- Character counter appears at 80% of limit, turns red at 95% — hidden for short messages
+- Image preview with remove button before upload; client-side MIME + size validation before upload starts
+- Multi-phase submit feedback: "Uploading…" → "Posting…" → default
+- Image lightbox with zoom-in cursor hint, fullscreen overlay, Escape/click-outside dismiss
+- "Scroll to top" floating pill with glassmorphism (backdrop blur), appears after 500px scroll
+- Empty feed state with illustration and "Create your first post!" prompt
+- Toast notifications (react-hot-toast) for all success/error feedback — no `alert()` calls
+
+**Comments & Replies**
+- Auto-focus comment input on section expand; auto-focus reply input on reply section expand
+- Enter to submit, Shift+Enter for newline
+- Submit button visually dimmed when input is empty
+- Soft-deleted comments show at reduced opacity with italic "This comment has been deleted" — preserves thread context
+- Reaction pill badges on comment/reply bubbles (clickable to open likes list)
+- Like text turns bold + blue when actively liked
+
+**Modals & Accessibility**
+- Custom confirm dialog for all destructive actions (post/comment/reply delete) — replaces `window.confirm()`
+- All modals: Escape key dismiss, click-outside dismiss, focus-on-mount, `role="dialog"` + `aria-modal`
+- Confirm modal has fade-in + slide-in animation, loading state, and danger (red) styling
+- Navbar profile dropdown: keyboard accessible (Enter/Space to toggle)
+- Click-outside hook reused across post kebab menu, profile dropdown, and all modals (supports touch events)
+
+**Navigation & Perceived Performance**
+- Smart root redirect: `/` → `/feed` if authenticated, `/login` if not
+- Auth-route guarding: logged-in users visiting `/login` or `/register` auto-redirect to `/feed`
+- SSR first page for fast LCP, client-side infinite scroll for subsequent pages
+- Live "time ago" timestamps that tick every 60 seconds without page refresh
+- Network error handling on every fetch with user-friendly messages (never raw errors)
 
 ### Caching (Upstash Redis)
 A multi-layer Redis caching strategy reduces API response times by 80-90% on cache hits while maintaining data freshness:
