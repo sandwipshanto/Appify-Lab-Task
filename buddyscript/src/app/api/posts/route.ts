@@ -59,16 +59,19 @@ export async function POST(request: Request) {
         content: true,
         imageUrl: true,
         visibility: true,
-        likeCount: true,
-        commentCount: true,
         shareCount: true,
         createdAt: true,
         authorId: true,
         author: { select: { id: true, firstName: true, lastName: true, avatar: true } },
+        _count: { select: { comments: { where: { deletedAt: null } }, likes: true } },
       },
     });
 
-    return NextResponse.json({ post: { ...post, liked: false, likes: [] } }, { status: 201 });
+    const { _count, ...rest } = post as any;
+    return NextResponse.json(
+      { post: { ...rest, liked: false, likes: [], commentCount: _count.comments, likeCount: _count.likes } },
+      { status: 201 }
+    );
   } catch (error) {
     if (error instanceof Response) return error;
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 });

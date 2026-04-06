@@ -153,35 +153,23 @@ export default function PostCard({ post, currentUser, onDelete, onToggleComments
             <div className="_feed_inner_timeline_total_reacts _padd_r24 _padd_l24 _mar_b26">
               <div className="_feed_inner_timeline_total_reacts_image" onClick={() => likeCount > 0 && setShowLikes(true)} style={likeCount > 0 ? { cursor: 'pointer' } : {}}>
                 {likeCount > 0 ? (
-                  <div style={{ display: 'flex', alignItems: 'center' }}>
-                    <div style={{ display: 'flex', position: 'relative', marginRight: '6px' }}>
-                      {post.likes?.slice(0, 3).map((like, index) => (
-                        <div
+                  <>
+                    {post.likes?.slice(0, 5).map((like, index) => {
+                      let className = index === 0 ? '_react_img1' : '_react_img';
+                      if (index >= 2) className += ' _rect_img_mbl_none';
+                      return (
+                        <img
                           key={like.user.id}
-                          style={{
-                            width: '24px',
-                            height: '24px',
-                            borderRadius: '50%',
-                            backgroundColor: '#fff',
-                            border: '2px solid #fff',
-                            marginLeft: index > 0 ? '-8px' : '0',
-                            zIndex: 3 - index,
-                            overflow: 'hidden',
-                            position: 'relative'
-                          }}
-                        >
-                          <img
-                            src={like.user.avatar || '/assets/images/default_avatar.png'}
-                            alt={`${like.user.firstName}'s reaction`}
-                            style={{ width: '100%', height: '100%', objectFit: 'cover' }}
-                          />
-                        </div>
-                      ))}
-                    </div>
-                    <p className="_feed_inner_timeline_total_reacts_para" style={{ marginLeft: '4px' }}>{likeCount}</p>
-                  </div>
+                          src={like.user.avatar || '/assets/images/default_avatar.png'}
+                          alt={`${like.user.firstName}'s reaction`}
+                          className={className}
+                        />
+                      );
+                    })}
+                    <p className="_feed_inner_timeline_total_reacts_para">{likeCount}</p>
+                  </>
                 ) : (
-                  <p className="_feed_inner_timeline_total_reacts_para" style={{ marginLeft: 0 }}>0</p>
+                  <p className="_feed_inner_timeline_total_reacts_para">0</p>
                 )}
               </div>
               <div className="_feed_inner_timeline_total_reacts_txt">
@@ -204,20 +192,23 @@ export default function PostCard({ post, currentUser, onDelete, onToggleComments
                 type="button"
               >
                 <span className="_feed_inner_timeline_reaction_link">
-                  <span>
-                    {liked ? (
-                      <svg style={{ transition: 'transform 0.2s cubic-bezier(0.175, 0.885, 0.32, 1.275)', transform: liked ? 'scale(1.2)' : 'scale(1)' }} xmlns="http://www.w3.org/2000/svg" width="19" height="19" fill="none" viewBox="0 0 19 19">
-                        <path fill="#FFCC4D" d="M9.5 19a9.5 9.5 0 100-19 9.5 9.5 0 000 19z"/>
-                        <path fill="#664500" d="M9.5 11.083c-1.912 0-3.181-.222-4.75-.527-.358-.07-1.056 0-1.056 1.055 0 2.111 2.425 4.75 5.806 4.75 3.38 0 5.805-2.639 5.805-4.75 0-1.055-.697-1.125-1.055-1.055-1.57.305-2.838.527-4.75.527z"/>
-                        <path fill="#fff" d="M4.75 11.611s1.583.528 4.75.528 4.75-.528 4.75-.528-1.056 2.111-4.75 2.111-4.75-2.11-4.75-2.11z"/>
-                        <path fill="#664500" d="M6.333 8.972c.729 0 1.32-.827 1.32-1.847s-.591-1.847-1.32-1.847c-.729 0-1.32.827-1.32 1.847s.591 1.847 1.32 1.847zM12.667 8.972c.729 0 1.32-.827 1.32-1.847s-.591-1.847-1.32-1.847c-.729 0-1.32.827-1.32 1.847s.591 1.847 1.32 1.847z"/>
-                      </svg>
-                    ) : (
-                      <svg xmlns="http://www.w3.org/2000/svg" width="19" height="17" fill="none" viewBox="0 0 19 17">
-                        <path stroke="#666" strokeWidth="1.5" d="M9.5 17l-1.43-1.3C3.2 11.36 0 8.48 0 4.95 0 2.07 2.28 0 5.23 0c1.66 0 3.25.77 4.27 1.99A5.882 5.882 0 0113.77 0C16.72 0 19 2.07 19 4.95c0 3.53-3.2 6.41-8.07 10.75L9.5 17z" />
-                      </svg>
-                    )}
-                    {liked ? ' Haha' : ' React'}
+                  <span style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                    <svg
+                      style={{ transition: 'transform 0.2s cubic-bezier(0.175, 0.885, 0.32, 1.275)', transform: liked ? 'scale(1.2)' : 'scale(1)' }}
+                      xmlns="http://www.w3.org/2000/svg"
+                      width="18"
+                      height="18"
+                      viewBox="0 0 24 24"
+                      fill={liked ? "currentColor" : "none"}
+                      stroke="currentColor"
+                      strokeWidth="2"
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                      className="feather feather-thumbs-up"
+                    >
+                      <path d="M14 9V5a3 3 0 0 0-3-3l-4 9v11h11.28a2 2 0 0 0 2-1.7l1.38-9a2 2 0 0 0-2-2.3zM7 22H4a2 2 0 0 1-2-2v-7a2 2 0 0 1 2-2h3"></path>
+                    </svg>
+                    Like
                   </span>
                 </span>
               </button>

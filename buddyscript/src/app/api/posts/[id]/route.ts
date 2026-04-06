@@ -19,8 +19,8 @@ export async function GET(
         content: true,
         imageUrl: true,
         visibility: true,
-        likeCount: true,
-        commentCount: true,
+        shareCount: true,
+        _count: { select: { comments: { where: { deletedAt: null } }, likes: true } },
         createdAt: true,
         authorId: true,
         author: { select: { id: true, firstName: true, lastName: true, avatar: true } },
@@ -60,7 +60,14 @@ export async function GET(
       return NextResponse.json({ error: 'Not found' }, { status: 404 });
     }
 
-    return NextResponse.json({ post });
+    const { _count, ...rest } = post as any;
+    const mappedPost = {
+      ...rest,
+      commentCount: _count.comments,
+      likeCount: _count.likes,
+    };
+
+    return NextResponse.json({ post: mappedPost });
   } catch (error) {
     if (error instanceof Response) return error;
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 });

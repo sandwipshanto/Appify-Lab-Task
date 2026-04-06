@@ -5,13 +5,12 @@ const POST_SELECT = (userId: string) => ({
   content: true,
   imageUrl: true,
   visibility: true,
-  likeCount: true,
-  commentCount: true,
   shareCount: true,
   createdAt: true,
   authorId: true,
   author: { select: { id: true, firstName: true, lastName: true, avatar: true } },
-  likes: { select: { user: { select: { id: true, firstName: true, avatar: true } } }, orderBy: { createdAt: 'desc' as const }, take: 3 },
+  likes: { select: { user: { select: { id: true, firstName: true, avatar: true } } }, orderBy: { createdAt: 'desc' as const }, take: 5 },
+  _count: { select: { comments: { where: { deletedAt: null } }, likes: true } },
 });
 
 export async function getFeedPage(
@@ -64,10 +63,15 @@ export async function getFeedPage(
   });
   const likedPostIds = new Set(userLikes.map((ul) => ul.postId));
 
-  const postsWithLiked = merged.map((p) => ({
-    ...p,
-    liked: likedPostIds.has(p.id),
-  }));
+  const postsWithLiked = merged.map((p) => {
+    const { _count, ...rest } = p;
+    return {
+      ...rest,
+      liked: likedPostIds.has(p.id),
+      commentCount: _count.comments,
+      likeCount: _count.likes,
+    };
+  });
 
   const nextCursor =
     merged.length === limit
