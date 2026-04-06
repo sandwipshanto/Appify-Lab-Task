@@ -153,11 +153,33 @@ export default function PostCard({ post, currentUser, onDelete, onToggleComments
             <div className="_feed_inner_timeline_total_reacts _padd_r24 _padd_l24 _mar_b26">
               <div className="_feed_inner_timeline_total_reacts_image" onClick={() => likeCount > 0 && setShowLikes(true)} style={likeCount > 0 ? { cursor: 'pointer' } : {}}>
                 {likeCount > 0 ? (
-                  <>
-                    <img src="/assets/images/react_img1.png" alt="Like" className="_react_img1" />
-                    <img src="/assets/images/react_img2.png" alt="Heart" className="_react_img" />
-                    <p className="_feed_inner_timeline_total_reacts_para">{likeCount}</p>
-                  </>
+                  <div style={{ display: 'flex', alignItems: 'center' }}>
+                    <div style={{ display: 'flex', position: 'relative', marginRight: '6px' }}>
+                      {post.likes?.slice(0, 3).map((like, index) => (
+                        <div
+                          key={like.user.id}
+                          style={{
+                            width: '24px',
+                            height: '24px',
+                            borderRadius: '50%',
+                            backgroundColor: '#fff',
+                            border: '2px solid #fff',
+                            marginLeft: index > 0 ? '-8px' : '0',
+                            zIndex: 3 - index,
+                            overflow: 'hidden',
+                            position: 'relative'
+                          }}
+                        >
+                          <img
+                            src={like.user.avatar || '/assets/images/default_avatar.png'}
+                            alt={`${like.user.firstName}'s reaction`}
+                            style={{ width: '100%', height: '100%', objectFit: 'cover' }}
+                          />
+                        </div>
+                      ))}
+                    </div>
+                    <p className="_feed_inner_timeline_total_reacts_para" style={{ marginLeft: '4px' }}>{likeCount}</p>
+                  </div>
                 ) : (
                   <p className="_feed_inner_timeline_total_reacts_para" style={{ marginLeft: 0 }}>0</p>
                 )}
@@ -170,7 +192,7 @@ export default function PostCard({ post, currentUser, onDelete, onToggleComments
                   navigator.clipboard.writeText(`${window.location.origin}/post/${post.id}`);
                   toast.success('Link copied');
                 }} style={{ cursor: 'pointer' }}>
-                  <span>0</span> Share
+                  <span>{post.shareCount || 0}</span> Share
                 </p>
               </div>
             </div>

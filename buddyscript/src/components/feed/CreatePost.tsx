@@ -16,6 +16,7 @@ export interface Post {
   visibility: 'PUBLIC' | 'PRIVATE';
   likeCount: number;
   commentCount: number;
+  shareCount: number;
   createdAt: string;
   authorId: string;
   author: {
@@ -25,6 +26,13 @@ export interface Post {
     avatar: string | null;
   };
   liked: boolean;
+  likes?: {
+    user: {
+      id: string;
+      firstName: string;
+      avatar: string | null;
+    };
+  }[];
 }
 
 const ALLOWED_TYPES = ['image/jpeg', 'image/png', 'image/gif', 'image/webp'];

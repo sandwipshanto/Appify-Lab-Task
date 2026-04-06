@@ -7,10 +7,11 @@ const POST_SELECT = (userId: string) => ({
   visibility: true,
   likeCount: true,
   commentCount: true,
+  shareCount: true,
   createdAt: true,
   authorId: true,
   author: { select: { id: true, firstName: true, lastName: true, avatar: true } },
-  likes: { where: { userId }, select: { id: true } },
+  likes: { select: { user: { select: { id: true, firstName: true, avatar: true } } }, orderBy: { createdAt: 'desc' as const }, take: 3 },
 });
 
 export async function getFeedPage(
@@ -56,12 +57,24 @@ export async function getFeedPage(
     .sort((a, b) => b.createdAt.getTime() - a.createdAt.getTime() || b.id.localeCompare(a.id))
     .slice(0, limit);
 
+  const postIds = merged.map((p) => p.id);
+  const userLikes = await prisma.postLike.findMany({
+    where: { userId, postId: { in: postIds } },
+    select: { postId: true },
+  });
+  const likedPostIds = new Set(userLikes.map((ul) => ul.postId));
+
+  const postsWithLiked = merged.map((p) => ({
+    ...p,
+    liked: likedPostIds.has(p.id),
+  }));
+
   const nextCursor =
     merged.length === limit
       ? `${merged[merged.length - 1].createdAt.toISOString()}_${merged[merged.length - 1].id}`
       : null;
 
-  return { posts: merged, nextCursor };
+  return { posts: postsWithLiked, nextCursor };
 }
 
 function parseCursor(cursor: string) {

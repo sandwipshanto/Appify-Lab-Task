@@ -61,13 +61,14 @@ export async function POST(request: Request) {
         visibility: true,
         likeCount: true,
         commentCount: true,
+        shareCount: true,
         createdAt: true,
         authorId: true,
         author: { select: { id: true, firstName: true, lastName: true, avatar: true } },
       },
     });
 
-    return NextResponse.json({ post }, { status: 201 });
+    return NextResponse.json({ post: { ...post, liked: false, likes: [] } }, { status: 201 });
   } catch (error) {
     if (error instanceof Response) return error;
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
