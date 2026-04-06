@@ -1,11 +1,12 @@
 'use client';
 
-import { useState, useCallback } from 'react';
+import { useState, useCallback, useRef } from 'react';
 import type { Post } from './CreatePost';
 import CreatePost from './CreatePost';
 import PostCard from './PostCard';
 import CommentSection from './CommentSection';
 import { useInfiniteScroll } from '@/hooks/useInfiniteScroll';
+import { PostCardSkeletonGroup } from './PostCardSkeleton';
 
 
 
@@ -25,11 +26,13 @@ export default function PostFeed({ initialPosts, initialCursor, user }: PostFeed
   const [cursor, setCursor] = useState<string | null>(initialCursor);
   const [hasMore, setHasMore] = useState(!!initialCursor);
   const [expandedComments, setExpandedComments] = useState<Set<string>>(new Set());
+  const cursorRef = useRef(cursor);
+  cursorRef.current = cursor;
 
   const loadMore = useCallback(async () => {
-    if (!cursor) return;
+    if (!cursorRef.current) return;
     try {
-      const res = await fetch(`/api/posts?cursor=${cursor}`);
+      const res = await fetch(`/api/posts?cursor=${cursorRef.current}`);
       if (!res.ok) return;
       const data = await res.json();
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -43,7 +46,7 @@ export default function PostFeed({ initialPosts, initialCursor, user }: PostFeed
     } catch {
       // Silently fail — user can scroll again
     }
-  }, [cursor]);
+  }, []);
 
   const { sentinelRef, isLoading } = useInfiniteScroll(loadMore, hasMore);
 
@@ -92,11 +95,7 @@ export default function PostFeed({ initialPosts, initialCursor, user }: PostFeed
       )}
 
       <div ref={sentinelRef} />
-      {isLoading && (
-        <div style={{ textAlign: 'center', padding: '16px', color: '#999' }}>
-          Loading more posts...
-        </div>
-      )}
+      {isLoading && <PostCardSkeletonGroup count={2} />}
     </>
   );
 }
