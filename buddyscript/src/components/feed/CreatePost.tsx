@@ -1,6 +1,8 @@
 'use client';
 
 import { useState, useRef, FormEvent } from 'react';
+import { useAutoResizeTextArea } from '@/hooks/useAutoResizeTextArea';
+import toast from 'react-hot-toast';
 
 interface CreatePostProps {
   userAvatar: string | null;
@@ -37,6 +39,9 @@ export default function CreatePost({ userAvatar, onPostCreated }: CreatePostProp
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState('');
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const textAreaRef = useRef<HTMLTextAreaElement>(null);
+
+  useAutoResizeTextArea(textAreaRef, content);
 
   function handleFileSelect(e: React.ChangeEvent<HTMLInputElement>) {
     const file = e.target.files?.[0];
@@ -125,6 +130,7 @@ export default function CreatePost({ userAvatar, onPostCreated }: CreatePostProp
 
       const data = await res.json();
       onPostCreated(data.post);
+      toast.success('Post published!');
 
       // Reset form
       setContent('');
@@ -151,12 +157,14 @@ export default function CreatePost({ userAvatar, onPostCreated }: CreatePostProp
           </div>
           <div className="form-floating _feed_inner_text_area_box_form">
             <textarea
+              ref={textAreaRef}
               className="form-control _textarea"
               placeholder="Write something..."
               id="createPostTextarea"
               value={content}
               onChange={(e) => setContent(e.target.value)}
               maxLength={5000}
+              style={{ overflow: 'hidden' }}
             />
             <label className="_feed_textarea_label" htmlFor="createPostTextarea">
               Write something ...

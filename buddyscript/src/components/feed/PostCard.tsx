@@ -4,6 +4,8 @@ import { useState } from 'react';
 import type { Post } from './CreatePost';
 import LikeButton from './LikeButton';
 import LikesList from './LikesList';
+import TimeAgo from '../ui/TimeAgo';
+import toast from 'react-hot-toast';
 
 interface PostCardProps {
   post: Post;
@@ -40,7 +42,14 @@ export default function PostCard({ post, currentUser, onDelete, onToggleComments
     setDeleting(true);
     try {
       const res = await fetch(`/api/posts/${post.id}`, { method: 'DELETE', headers: { Origin: window.location.origin } });
-      if (res.ok) onDelete(post.id);
+      if (res.ok) {
+        onDelete(post.id);
+        toast.success('Post deleted');
+      } else {
+        toast.error('Failed to delete post');
+      }
+    } catch {
+      toast.error('Network error');
     } finally {
       setDeleting(false);
       setMenuOpen(false);
@@ -64,7 +73,7 @@ export default function PostCard({ post, currentUser, onDelete, onToggleComments
                 {post.author.firstName} {post.author.lastName}
               </h4>
               <p className="_feed_inner_timeline_post_box_para">
-                {timeAgo(post.createdAt)} &middot; {post.visibility === 'PRIVATE' ? 'Private' : 'Public'}
+                <TimeAgo timestamp={post.createdAt} /> &middot; {post.visibility === 'PRIVATE' ? 'Private' : 'Public'}
               </p>
             </div>
           </div>

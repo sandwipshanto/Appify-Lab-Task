@@ -1,5 +1,6 @@
 import type { Metadata } from 'next';
 import { validateEnv } from '@/lib/env';
+import { Toaster } from 'react-hot-toast';
 
 validateEnv();
 
@@ -23,7 +24,10 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
         <link rel="stylesheet" href="/assets/css/main.css" />
         <link rel="stylesheet" href="/assets/css/responsive.css" />
       </head>
-      <body>{children}</body>
+      <body>
+        {children}
+        <Toaster position="bottom-right" toastOptions={{ style: { fontSize: '14px', borderRadius: '8px' } }} />
+      </body>
     </html>
   );
 }

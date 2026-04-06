@@ -1,8 +1,11 @@
 'use client';
 
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react';
 import LikeButton from './LikeButton';
 import LikesList from './LikesList';
+import TimeAgo from '../ui/TimeAgo';
+import toast from 'react-hot-toast';
+import { useAutoResizeTextArea } from '@/hooks/useAutoResizeTextArea';
 
 interface Comment {
   id: string;
@@ -47,6 +50,9 @@ export default function CommentSection({ postId, currentUser }: CommentSectionPr
   const [hasMore, setHasMore] = useState(false);
   const [newComment, setNewComment] = useState('');
   const [submitting, setSubmitting] = useState(false);
+  const commentInputRef = useRef<HTMLTextAreaElement>(null);
+
+  useAutoResizeTextArea(commentInputRef, newComment);
 
   const fetchComments = useCallback(async (nextCursor: string | null) => {
     const params = nextCursor ? `?cursor=${nextCursor}` : '';
@@ -85,7 +91,12 @@ export default function CommentSection({ postId, currentUser }: CommentSectionPr
         const data = await res.json();
         setComments((prev) => [{ ...data.comment, liked: false, deleted: false, replies: [], hasMoreReplies: false }, ...prev]);
         setNewComment('');
+        toast.success("Comment posted");
+      } else {
+        toast.error("Failed to post comment");
       }
+    } catch {
+      toast.error("Network error");
     } finally {
       setSubmitting(false);
     }
@@ -94,13 +105,15 @@ export default function CommentSection({ postId, currentUser }: CommentSectionPr
   return (
     <div className="_b_radious6 _padd_b24 _padd_r24 _padd_l24 _mar_b16" style={{ background: 'var(--bg2, #fff)' }}>
       <form onSubmit={handleSubmit} style={{ display: 'flex', gap: '8px', marginBottom: '16px', paddingTop: '16px' }}>
-        <input
-          type="text"
+        <textarea
+          ref={commentInputRef}
           className="form-control"
           placeholder="Write a comment..."
           value={newComment}
           onChange={(e) => setNewComment(e.target.value)}
           maxLength={2000}
+          rows={1}
+          style={{ resize: 'none', overflow: 'hidden' }}
         />
         <button type="submit" className="_btn1" disabled={submitting || !newComment.trim()} style={{ padding: '6px 16px', whiteSpace: 'nowrap' }}>
           {submitting ? '...' : 'Send'}
@@ -137,6 +150,9 @@ function CommentCard({ comment, postId, currentUser, onDelete }: { comment: Comm
   const [deleting, setDeleting] = useState(false);
   const [deleted, setDeleted] = useState(comment.deleted);
   const [likesPatch, setLikesPatch] = useState<{ action: 'add' | 'remove'; user: CurrentUser } | null>(null);
+  const replyInputRef = useRef<HTMLTextAreaElement>(null);
+
+  useAutoResizeTextArea(replyInputRef, replyText);
 
   const isOwner = comment.authorId === currentUser.id;
 
@@ -165,7 +181,12 @@ function CommentCard({ comment, postId, currentUser, onDelete }: { comment: Comm
         setReplies((prev) => [...prev, { ...data.comment, liked: false, deleted: false }]);
         setReplyText('');
         setShowReplies(true);
+        toast.success("Reply posted");
+      } else {
+        toast.error("Failed to post reply");
       }
+    } catch {
+      toast.error("Network error");
     } finally {
       setSubmittingReply(false);
     }
@@ -179,7 +200,12 @@ function CommentCard({ comment, postId, currentUser, onDelete }: { comment: Comm
       if (res.ok) {
         setDeleted(true);
         onDelete(comment.id);
+        toast.success("Comment deleted");
+      } else {
+        toast.error("Failed to delete comment");
       }
+    } catch {
+      toast.error("Network error");
     } finally {
       setDeleting(false);
     }
@@ -202,7 +228,7 @@ function CommentCard({ comment, postId, currentUser, onDelete }: { comment: Comm
           <div style={{ background: '#f5f5f5', borderRadius: '12px', padding: '8px 12px' }}>
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
               <strong style={{ fontSize: '13px' }}>{comment.author.firstName} {comment.author.lastName}</strong>
-              <span style={{ fontSize: '11px', color: '#999' }}>{timeAgo(comment.createdAt)}</span>
+              <span style={{ fontSize: '11px', color: '#999' }}><TimeAgo timestamp={comment.createdAt} /></span>
             </div>
             <p style={{ margin: '2px 0 0', fontSize: '13px', color: deleted ? '#999' : '#333' }}>
               {deleted ? <em>This comment has been deleted</em> : comment.content}
@@ -247,14 +273,15 @@ function CommentCard({ comment, postId, currentUser, onDelete }: { comment: Comm
             </button>
           )}
           <form onSubmit={handleReplySubmit} style={{ display: 'flex', gap: '6px', marginTop: '8px' }}>
-            <input
-              type="text"
+            <textarea
+              ref={replyInputRef}
               className="form-control"
               placeholder="Write a reply..."
               value={replyText}
               onChange={(e) => setReplyText(e.target.value)}
               maxLength={2000}
-              style={{ fontSize: '13px', padding: '4px 8px' }}
+              rows={1}
+              style={{ fontSize: '13px', padding: '4px 8px', resize: 'none', overflow: 'hidden' }}
             />
             <button type="submit" className="_btn1" disabled={submittingReply || !replyText.trim()} style={{ padding: '4px 12px', fontSize: '12px', whiteSpace: 'nowrap' }}>
               Reply
@@ -285,7 +312,12 @@ function ReplyCard({ reply, currentUser, onDelete }: { reply: Comment; currentUs
       if (res.ok) {
         setDeleted(true);
         onDelete(reply.id);
+        toast.success("Reply deleted");
+      } else {
+        toast.error("Failed to delete reply");
       }
+    } catch {
+      toast.error("Network error");
     } finally {
       setDeleting(false);
     }
@@ -303,7 +335,7 @@ function ReplyCard({ reply, currentUser, onDelete }: { reply: Comment; currentUs
           <div style={{ background: '#f0f0f0', borderRadius: '10px', padding: '6px 10px' }}>
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
               <strong style={{ fontSize: '12px' }}>{reply.author.firstName} {reply.author.lastName}</strong>
-              <span style={{ fontSize: '10px', color: '#999' }}>{timeAgo(reply.createdAt)}</span>
+              <span style={{ fontSize: '10px', color: '#999' }}><TimeAgo timestamp={reply.createdAt} /></span>
             </div>
             <p style={{ margin: '2px 0 0', fontSize: '12px', color: deleted ? '#999' : '#333' }}>
               {deleted ? <em>This reply has been deleted</em> : reply.content}

@@ -7,6 +7,8 @@ import PostCard from './PostCard';
 import CommentSection from './CommentSection';
 import { useInfiniteScroll } from '@/hooks/useInfiniteScroll';
 
+
+
 interface PostFeedProps {
   initialPosts: Post[];
   initialCursor: string | null;
