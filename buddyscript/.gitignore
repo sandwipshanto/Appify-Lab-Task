@@ -8,6 +8,19 @@
 
 # testing
 /coverage
+/test-results/
+
+# build/debug artifacts
+build_error.log
+build_output.txt
+test_output.txt
+
+# utility scripts (ad-hoc, not part of the app)
+/scripts/delete-posts.js
+/scripts/prefill-interactions.js
+/scripts/prefill2.js
+/scripts/test-prisma.js
+/scripts/update-avatars.js
 
 # next.js
 /.next/
