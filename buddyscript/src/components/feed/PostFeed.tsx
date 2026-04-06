@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useCallback, useRef } from 'react';
+import { useState, useCallback, useRef, useEffect } from 'react';
 import type { Post } from './CreatePost';
 import CreatePost from './CreatePost';
 import PostCard from './PostCard';
@@ -29,7 +29,31 @@ export default function PostFeed({ initialPosts, initialCursor, user }: PostFeed
   const [newPostIds, setNewPostIds] = useState<Set<string>>(new Set());
   const cursorRef = useRef(cursor);
   const feedTopRef = useRef<HTMLDivElement>(null);
+  const [showScrollTop, setShowScrollTop] = useState(false);
   cursorRef.current = cursor;
+
+  useEffect(() => {
+    // We need to wait a tick for the ref to be mounted and the layout to be established
+    const timer = setTimeout(() => {
+      const scrollParent = feedTopRef.current?.closest('._layout_middle_wrap');
+      if (!scrollParent) return;
+
+      const handleScroll = () => {
+        setShowScrollTop(scrollParent.scrollTop > 500);
+      };
+
+      scrollParent.addEventListener('scroll', handleScroll, { passive: true });
+      return () => scrollParent.removeEventListener('scroll', handleScroll);
+    }, 100);
+    return () => clearTimeout(timer);
+  }, []);
+
+  function scrollToTop() {
+    const scrollParent = feedTopRef.current?.closest('._layout_middle_wrap');
+    if (scrollParent) {
+      scrollParent.scrollTo({ top: 0, behavior: 'smooth' });
+    }
+  }
 
   const loadMore = useCallback(async () => {
     if (!cursorRef.current) return;
@@ -123,6 +147,46 @@ export default function PostFeed({ initialPosts, initialCursor, user }: PostFeed
 
       <div ref={sentinelRef} />
       {isLoading && <PostCardSkeletonGroup count={2} />}
+
+      {showScrollTop && (
+        <button
+          onClick={scrollToTop}
+          style={{
+            position: 'fixed',
+            bottom: '40px',
+            left: '50%',
+            transform: 'translateX(-50%)',
+            padding: '10px 20px',
+            borderRadius: '24px',
+            background: 'rgba(255, 255, 255, 0.85)',
+            backdropFilter: 'blur(8px)',
+            WebkitBackdropFilter: 'blur(8px)',
+            color: '#444',
+            border: '1px solid #eaeaea',
+            display: 'flex',
+            alignItems: 'center',
+            gap: '8px',
+            cursor: 'pointer',
+            boxShadow: '0 4px 12px rgba(0,0,0,0.08)',
+            zIndex: 100,
+            fontSize: '14px',
+            fontWeight: 500,
+            animation: 'fadeInUp 0.3s ease-out',
+          }}
+          aria-label="Scroll to top"
+        >
+          <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
+            <path strokeLinecap="round" strokeLinejoin="round" d="M5 15l7-7 7 7" />
+          </svg>
+          Scroll to top
+          <style>{`
+            @keyframes fadeInUp {
+              from { opacity: 0; transform: translate(-50%, 10px) scale(0.95); }
+              to { opacity: 1; transform: translate(-50%, 0) scale(1); }
+            }
+          `}</style>
+        </button>
+      )}
     </>
   );
 }
