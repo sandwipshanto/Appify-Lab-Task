@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server';
 import { requireUser, requirePostAccess } from '@/lib/auth';
 import { prisma } from '@/lib/db';
+import { setPostCounter, getPostCounter, invalidateUserFeedCache } from '@/lib/cache';
 
 export async function POST(
   _request: Request,
@@ -18,10 +19,16 @@ export async function POST(
     });
 
     if (existing) {
+      // Try cached counter first to avoid DB hit
+      const cachedCount = await getPostCounter(postId, 'likes');
+      if (cachedCount !== null) {
+        return NextResponse.json({ liked: true, likeCount: cachedCount });
+      }
       const post = await prisma.post.findUnique({
         where: { id: postId },
         select: { likeCount: true },
       });
+      await setPostCounter(postId, 'likes', post!.likeCount);
       return NextResponse.json({ liked: true, likeCount: post!.likeCount });
     }
 
@@ -35,11 +42,15 @@ export async function POST(
           select: { likeCount: true },
         }),
       ]);
+      // Write-through: update Redis counter + invalidate feed
+      await setPostCounter(postId, 'likes', updatedPost.likeCount);
+      await invalidateUserFeedCache(userId);
       return NextResponse.json({ liked: true, likeCount: updatedPost.likeCount });
     } catch (txError: unknown) {
       // Handle concurrent duplicate — unique constraint violation
       if (txError && typeof txError === 'object' && 'code' in txError && txError.code === 'P2002') {
         const post = await prisma.post.findUnique({ where: { id: postId }, select: { likeCount: true } });
+        await setPostCounter(postId, 'likes', post!.likeCount);
         return NextResponse.json({ liked: true, likeCount: post!.likeCount });
       }
       throw txError;
@@ -66,10 +77,16 @@ export async function DELETE(
     });
 
     if (!existing) {
+      // Try cached counter first
+      const cachedCount = await getPostCounter(postId, 'likes');
+      if (cachedCount !== null) {
+        return NextResponse.json({ liked: false, likeCount: cachedCount });
+      }
       const post = await prisma.post.findUnique({
         where: { id: postId },
         select: { likeCount: true },
       });
+      await setPostCounter(postId, 'likes', post!.likeCount);
       return NextResponse.json({ liked: false, likeCount: post!.likeCount });
     }
 
@@ -85,11 +102,14 @@ export async function DELETE(
           select: { likeCount: true },
         }),
       ]);
+      await setPostCounter(postId, 'likes', updatedPost.likeCount);
+      await invalidateUserFeedCache(userId);
       return NextResponse.json({ liked: false, likeCount: updatedPost.likeCount });
     } catch (txError: unknown) {
       // Handle concurrent duplicate delete — record not found
       if (txError && typeof txError === 'object' && 'code' in txError && txError.code === 'P2025') {
         const post = await prisma.post.findUnique({ where: { id: postId }, select: { likeCount: true } });
+        await setPostCounter(postId, 'likes', post!.likeCount);
         return NextResponse.json({ liked: false, likeCount: post!.likeCount });
       }
       throw txError;

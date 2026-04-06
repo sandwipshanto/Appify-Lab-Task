@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { requireUser, requirePostAccess } from '@/lib/auth';
 import { prisma } from '@/lib/db';
+import { CacheKey, TTL, cacheGet, cacheSet } from '@/lib/cache';
 
 const AUTHOR_SELECT = {
   id: true,
@@ -32,6 +33,12 @@ export async function GET(
     const cursor = searchParams.get('cursor');
     const limit = 20;
 
+    // ─── Cache Check ─────────────────────────────────────────
+    const cacheKey = CacheKey.replies(commentId, userId, cursor);
+    const cached = await cacheGet<{ replies: any[]; nextCursor: string | null }>(cacheKey);
+    if (cached) return NextResponse.json(cached);
+
+    // ─── DB Query ────────────────────────────────────────────
     const cursorFilter = cursor ? parseCursor(cursor) : null;
     const replies = await prisma.comment.findMany({
       where: {
@@ -78,7 +85,12 @@ export async function GET(
       };
     });
 
-    return NextResponse.json({ replies: formatted, nextCursor });
+    const result = { replies: formatted, nextCursor };
+
+    // ─── Cache Write ─────────────────────────────────────────
+    cacheSet(cacheKey, result, TTL.replies);
+
+    return NextResponse.json(result);
   } catch (error) {
     if (error instanceof Response) return error;
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 });

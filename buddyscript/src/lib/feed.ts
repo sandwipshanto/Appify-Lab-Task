@@ -1,4 +1,5 @@
 import { prisma } from './db';
+import { CacheKey, TTL, cacheGet, cacheSet } from './cache';
 
 const POST_SELECT = (userId: string) => ({
   id: true,
@@ -18,6 +19,12 @@ export async function getFeedPage(
   cursor: string | null,
   limit: number = 10
 ) {
+  // ─── Cache Check ─────────────────────────────────────────────
+  const cacheKey = CacheKey.feed(userId, cursor, limit);
+  const cached = await cacheGet<{ posts: any[]; nextCursor: string | null }>(cacheKey);
+  if (cached) return cached;
+
+  // ─── DB Query ────────────────────────────────────────────────
   const cursorFilter = cursor ? parseCursor(cursor) : null;
 
   const [publicPosts, privatePosts] = await Promise.all([
@@ -85,7 +92,12 @@ export async function getFeedPage(
       ? `${merged[merged.length - 1].createdAt.toISOString()}_${merged[merged.length - 1].id}`
       : null;
 
-  return { posts: postsWithLiked, nextCursor };
+  const result = { posts: postsWithLiked, nextCursor };
+
+  // ─── Cache Write (fire-and-forget) ───────────────────────────
+  cacheSet(cacheKey, result, TTL.feed);
+
+  return result;
 }
 
 function parseCursor(cursor: string) {

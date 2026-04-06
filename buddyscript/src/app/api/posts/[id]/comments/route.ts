@@ -3,6 +3,11 @@ import { requireUser, requirePostAccess } from '@/lib/auth';
 import { prisma } from '@/lib/db';
 import { validateComment } from '@/lib/validators';
 import { commentRateLimit, getClientIP } from '@/lib/rate-limit';
+import {
+  CacheKey, TTL, cacheGet, cacheSet, cacheDel,
+  invalidateCommentCache, invalidateUserFeedCache,
+  setPostCounter,
+} from '@/lib/cache';
 
 const AUTHOR_SELECT = {
   id: true,
@@ -25,6 +30,12 @@ export async function GET(
     const cursor = searchParams.get('cursor');
     const limit = 20;
 
+    // ─── Cache Check ─────────────────────────────────────────
+    const cacheKey = CacheKey.comments(postId, userId, cursor);
+    const cached = await cacheGet<{ comments: any[]; nextCursor: string | null }>(cacheKey);
+    if (cached) return NextResponse.json(cached);
+
+    // ─── DB Query ────────────────────────────────────────────
     // Fetch top-level comments (parentId = null), including soft-deleted ones
     const cursorFilter = cursor ? parseCursor(cursor) : null;
     const comments = await prisma.comment.findMany({
@@ -84,7 +95,12 @@ export async function GET(
       };
     });
 
-    return NextResponse.json({ comments: formatted, nextCursor });
+    const result = { comments: formatted, nextCursor };
+
+    // ─── Cache Write ─────────────────────────────────────────
+    cacheSet(cacheKey, result, TTL.comments);
+
+    return NextResponse.json(result);
   } catch (error) {
     if (error instanceof Response) return error;
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
@@ -155,7 +171,7 @@ export async function POST(
     }
 
     // Atomic: create comment + increment post's commentCount
-    const [comment] = await prisma.$transaction([
+    const [comment, updatedPost] = await prisma.$transaction([
       prisma.comment.create({
         data: {
           content,
@@ -177,8 +193,18 @@ export async function POST(
       prisma.post.update({
         where: { id: postId },
         data: { commentCount: { increment: 1 } },
+        select: { commentCount: true },
       }),
     ]);
+
+    // Invalidate caches: comment tree + feed (for commentCount)
+    await invalidateCommentCache(postId, userId);
+    await setPostCounter(postId, 'comments', updatedPost.commentCount);
+    await invalidateUserFeedCache(userId);
+    // If it's a reply, also invalidate the parent's reply cache
+    if (parentId) {
+      await cacheDel(CacheKey.replies(parentId, userId, null));
+    }
 
     return NextResponse.json(
       {

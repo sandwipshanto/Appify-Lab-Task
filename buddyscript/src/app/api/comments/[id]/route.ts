@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server';
 import { requireUser, requirePostAccess } from '@/lib/auth';
 import { prisma } from '@/lib/db';
+import { invalidateCommentCache, invalidateUserFeedCache, setPostCounter } from '@/lib/cache';
 
 export async function DELETE(
   _request: Request,
@@ -34,19 +35,28 @@ export async function DELETE(
 
     // Atomic: soft delete + decrement post's commentCount
     // Use updateMany with deletedAt IS NULL to prevent concurrent double-decrement
-    await prisma.$transaction(async (tx) => {
+    const decremented = await prisma.$transaction(async (tx) => {
       const updated = await tx.comment.updateMany({
         where: { id: commentId, deletedAt: null },
         data: { deletedAt: new Date() },
       });
       if (updated.count > 0) {
-        await tx.post.update({
+        const post = await tx.post.update({
           where: { id: comment.postId },
           data: { commentCount: { decrement: 1 } },
+          select: { commentCount: true },
         });
+        return post.commentCount;
       }
-      return updated.count;
+      return null;
     });
+
+    // Invalidate caches
+    await invalidateCommentCache(comment.postId, userId);
+    await invalidateUserFeedCache(userId);
+    if (decremented !== null) {
+      await setPostCounter(comment.postId, 'comments', decremented);
+    }
 
     return NextResponse.json({ deleted: true });
   } catch (error) {

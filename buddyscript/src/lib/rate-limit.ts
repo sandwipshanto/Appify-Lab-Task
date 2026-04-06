@@ -1,18 +1,10 @@
 import { Ratelimit } from '@upstash/ratelimit';
-import { Redis } from '@upstash/redis';
+import { redis } from './redis';
 
 const isProduction = process.env.NODE_ENV === 'production';
-const hasRedis = isProduction && process.env.UPSTASH_REDIS_REST_URL && process.env.UPSTASH_REDIS_REST_TOKEN;
-
-const redis = hasRedis
-  ? new Redis({
-      url: process.env.UPSTASH_REDIS_REST_URL!,
-      token: process.env.UPSTASH_REDIS_REST_TOKEN!,
-    })
-  : null;
 
 function createRateLimiter(limit: number, window: string, prefix: string) {
-  if (!redis) {
+  if (!isProduction || !redis) {
     return { limit: async () => ({ success: true, limit, remaining: limit, reset: 0 }) };
   }
   return new Ratelimit({

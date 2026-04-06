@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server';
 import { requireUser, requirePostAccess } from '@/lib/auth';
 import { prisma } from '@/lib/db';
+import { setCommentCounter, getCommentCounter, invalidateCommentCache } from '@/lib/cache';
 
 async function resolveComment(commentId: string, userId: string) {
   const comment = await prisma.comment.findUnique({
@@ -42,10 +43,16 @@ export async function POST(
     });
 
     if (existing) {
+      // Try cached counter first
+      const cachedCount = await getCommentCounter(commentId);
+      if (cachedCount !== null) {
+        return NextResponse.json({ liked: true, likeCount: cachedCount });
+      }
       const current = await prisma.comment.findUnique({
         where: { id: commentId },
         select: { likeCount: true },
       });
+      await setCommentCounter(commentId, current!.likeCount);
       return NextResponse.json({ liked: true, likeCount: current!.likeCount });
     }
 
@@ -59,10 +66,14 @@ export async function POST(
           select: { likeCount: true },
         }),
       ]);
+      // Write-through counter + invalidate comment tree
+      await setCommentCounter(commentId, updatedComment.likeCount);
+      await invalidateCommentCache(comment.postId, userId);
       return NextResponse.json({ liked: true, likeCount: updatedComment.likeCount });
     } catch (txError: unknown) {
       if (txError && typeof txError === 'object' && 'code' in txError && txError.code === 'P2002') {
         const current = await prisma.comment.findUnique({ where: { id: commentId }, select: { likeCount: true } });
+        await setCommentCounter(commentId, current!.likeCount);
         return NextResponse.json({ liked: true, likeCount: current!.likeCount });
       }
       throw txError;
@@ -97,10 +108,15 @@ export async function DELETE(
     });
 
     if (!existing) {
+      const cachedCount = await getCommentCounter(commentId);
+      if (cachedCount !== null) {
+        return NextResponse.json({ liked: false, likeCount: cachedCount });
+      }
       const current = await prisma.comment.findUnique({
         where: { id: commentId },
         select: { likeCount: true },
       });
+      await setCommentCounter(commentId, current!.likeCount);
       return NextResponse.json({ liked: false, likeCount: current!.likeCount });
     }
 
@@ -116,10 +132,13 @@ export async function DELETE(
           select: { likeCount: true },
         }),
       ]);
+      await setCommentCounter(commentId, updatedComment.likeCount);
+      await invalidateCommentCache(comment.postId, userId);
       return NextResponse.json({ liked: false, likeCount: updatedComment.likeCount });
     } catch (txError: unknown) {
       if (txError && typeof txError === 'object' && 'code' in txError && txError.code === 'P2025') {
         const current = await prisma.comment.findUnique({ where: { id: commentId }, select: { likeCount: true } });
+        await setCommentCounter(commentId, current!.likeCount);
         return NextResponse.json({ liked: false, likeCount: current!.likeCount });
       }
       throw txError;

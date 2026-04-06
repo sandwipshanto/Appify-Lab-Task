@@ -2,6 +2,7 @@ import bcrypt from 'bcryptjs';
 import { SignJWT, jwtVerify } from 'jose';
 import { cookies } from 'next/headers';
 import { prisma } from './db';
+import { CacheKey, TTL, cacheGet, cacheSet, cacheDel } from './cache';
 
 function getJWTSecret() {
   const secret = process.env.JWT_SECRET;
@@ -46,6 +47,12 @@ export async function setAuthCookie(userId: string): Promise<void> {
 }
 
 export async function clearAuthCookie(): Promise<void> {
+  // Invalidate session cache before clearing cookie
+  const token = await getAuthToken();
+  if (token) {
+    const tokenKey = token.slice(-16);
+    cacheDel(CacheKey.session(tokenKey));
+  }
   const cookieStore = await cookies();
   cookieStore.delete(COOKIE_NAME);
 }
@@ -60,8 +67,17 @@ export async function requireUser(): Promise<{ userId: string }> {
   if (!token) {
     throw new Response(JSON.stringify({ error: 'Unauthorized' }), { status: 401 });
   }
+
+  // Check session cache first
+  const tokenKey = token.slice(-16);
+  const sessionKey = CacheKey.session(tokenKey);
+  const cached = await cacheGet<{ userId: string }>(sessionKey);
+  if (cached) return cached;
+
   try {
-    return await verifyJWT(token);
+    const payload = await verifyJWT(token);
+    cacheSet(sessionKey, payload, TTL.session);
+    return payload;
   } catch {
     throw new Response(JSON.stringify({ error: 'Unauthorized' }), { status: 401 });
   }

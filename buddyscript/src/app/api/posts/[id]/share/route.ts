@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server';
 import { requireUser, requirePostAccess } from '@/lib/auth';
 import { prisma } from '@/lib/db';
+import { setPostCounter, invalidateUserFeedCache } from '@/lib/cache';
 
 export async function POST(
   _request: Request,
@@ -35,6 +36,8 @@ export async function POST(
           select: { shareCount: true },
         }),
       ]);
+      await setPostCounter(postId, 'shares', updatedPost.shareCount);
+      await invalidateUserFeedCache(userId);
       return NextResponse.json({ shared: true, shareCount: updatedPost.shareCount });
     } catch (txError: unknown) {
       // Handle concurrent duplicate — unique constraint violation

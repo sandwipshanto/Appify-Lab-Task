@@ -4,6 +4,7 @@ import { prisma } from '@/lib/db';
 import { validatePost } from '@/lib/validators';
 import { createPostRateLimit, getClientIP } from '@/lib/rate-limit';
 import { getFeedPage } from '@/lib/feed';
+import { invalidateUserFeedCache } from '@/lib/cache';
 
 export async function GET(request: NextRequest) {
   try {
@@ -68,6 +69,8 @@ export async function POST(request: Request) {
     });
 
     const { _count, ...rest } = post as any;
+    // Invalidate the author's feed cache so they see their new post immediately
+    await invalidateUserFeedCache(userId);
     return NextResponse.json(
       { post: { ...rest, liked: false, shared: false, likes: [], commentCount: _count.comments, likeCount: _count.likes } },
       { status: 201 }

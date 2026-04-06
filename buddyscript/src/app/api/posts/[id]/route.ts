@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server';
 import { requireUser, requirePostAccess } from '@/lib/auth';
 import { prisma } from '@/lib/db';
+import { invalidateUserFeedCache } from '@/lib/cache';
 
 export async function GET(
   _request: Request,
@@ -100,6 +101,7 @@ export async function DELETE(
       throw e;
     }
 
+    await invalidateUserFeedCache(userId);
     return NextResponse.json({ message: 'Post deleted' }, { status: 200 });
   } catch (error) {
     if (error instanceof Response) return error;
