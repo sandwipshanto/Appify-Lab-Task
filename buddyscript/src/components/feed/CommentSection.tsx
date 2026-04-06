@@ -31,6 +31,7 @@ interface CurrentUser {
 interface CommentSectionProps {
   postId: string;
   currentUser: CurrentUser;
+  onCommentChange?: (delta: number) => void;
 }
 
 const MAX_COMMENT_LENGTH = 2000;
@@ -119,7 +120,7 @@ function ReactionPill({ likeCount, onClick }: { likeCount: number; onClick: () =
   );
 }
 
-export default function CommentSection({ postId, currentUser }: CommentSectionProps) {
+export default function CommentSection({ postId, currentUser, onCommentChange }: CommentSectionProps) {
   const [comments, setComments] = useState<Comment[]>([]);
   const [loading, setLoading] = useState(true);
   const [cursor, setCursor] = useState<string | null>(null);
@@ -160,6 +161,7 @@ export default function CommentSection({ postId, currentUser }: CommentSectionPr
       }
       return c;
     }));
+    onCommentChange?.(-1);
   }
 
   async function handleSubmit(e?: React.FormEvent) {
@@ -177,6 +179,7 @@ export default function CommentSection({ postId, currentUser }: CommentSectionPr
         setComments((prev) => [{ ...data.comment, liked: false, deleted: false, replies: [], hasMoreReplies: false }, ...prev]);
         setNewComment('');
         toast.success("Comment posted");
+        onCommentChange?.(1);
       } else {
         toast.error("Failed to post comment");
       }
@@ -237,7 +240,7 @@ export default function CommentSection({ postId, currentUser }: CommentSectionPr
           <p style={{ textAlign: 'center', color: '#999', fontSize: '13px', padding: '16px 0' }}>No comments yet</p>
         ) : (
           comments.map((comment) => (
-            <CommentCard key={comment.id} comment={comment} postId={postId} currentUser={currentUser} onDelete={markCommentDeleted} />
+            <CommentCard key={comment.id} comment={comment} postId={postId} currentUser={currentUser} onDelete={markCommentDeleted} onCommentChange={onCommentChange} />
           ))
         )}
       </div>
@@ -245,7 +248,7 @@ export default function CommentSection({ postId, currentUser }: CommentSectionPr
   );
 }
 
-function CommentCard({ comment, postId, currentUser, onDelete }: { comment: Comment; postId: string; currentUser: CurrentUser; onDelete: (id: string) => void }) {
+function CommentCard({ comment, postId, currentUser, onDelete, onCommentChange }: { comment: Comment; postId: string; currentUser: CurrentUser; onDelete: (id: string) => void; onCommentChange?: (delta: number) => void }) {
   const [showReplies, setShowReplies] = useState(!!comment.replies?.length);
   const [replies, setReplies] = useState<Comment[]>(comment.replies || []);
   const [hasMoreReplies, setHasMoreReplies] = useState(comment.hasMoreReplies || false);
@@ -289,6 +292,7 @@ function CommentCard({ comment, postId, currentUser, onDelete }: { comment: Comm
         setReplyText('');
         setShowReplies(true);
         toast.success("Reply posted");
+        onCommentChange?.(1);
       } else {
         toast.error("Failed to post reply");
       }

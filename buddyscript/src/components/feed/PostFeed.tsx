@@ -114,6 +114,12 @@ export default function PostFeed({ initialPosts, initialCursor, user }: PostFeed
     });
   }
 
+  function handleCommentCountChange(postId: string, delta: number) {
+    setPosts((prev) =>
+      prev.map((p) => (p.id === postId ? { ...p, commentCount: Math.max(0, p.commentCount + delta) } : p))
+    );
+  }
+
   return (
     <>
       <div ref={feedTopRef} />
@@ -139,7 +145,7 @@ export default function PostFeed({ initialPosts, initialCursor, user }: PostFeed
               isNew={newPostIds.has(post.id)}
             />
             {expandedComments.has(post.id) && (
-              <CommentSection postId={post.id} currentUser={user} />
+              <CommentSection postId={post.id} currentUser={user} onCommentChange={(delta) => handleCommentCountChange(post.id, delta)} />
             )}
           </div>
         ))
