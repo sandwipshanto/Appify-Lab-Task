@@ -26,7 +26,9 @@ export default function PostFeed({ initialPosts, initialCursor, user }: PostFeed
   const [cursor, setCursor] = useState<string | null>(initialCursor);
   const [hasMore, setHasMore] = useState(!!initialCursor);
   const [expandedComments, setExpandedComments] = useState<Set<string>>(new Set());
+  const [newPostIds, setNewPostIds] = useState<Set<string>>(new Set());
   const cursorRef = useRef(cursor);
+  const feedTopRef = useRef<HTMLDivElement>(null);
   cursorRef.current = cursor;
 
   const loadMore = useCallback(async () => {
@@ -52,6 +54,24 @@ export default function PostFeed({ initialPosts, initialCursor, user }: PostFeed
 
   function handlePostCreated(post: Post) {
     setPosts((prev) => [{ ...post, liked: false }, ...prev]);
+    setNewPostIds((prev) => new Set(prev).add(post.id));
+
+    // Scroll to top of feed so user sees their new post
+    requestAnimationFrame(() => {
+      const scrollParent = feedTopRef.current?.closest('._layout_middle_wrap');
+      if (scrollParent) {
+        scrollParent.scrollTo({ top: 0, behavior: 'smooth' });
+      }
+    });
+
+    // Clear the "new" flag after animation plays
+    setTimeout(() => {
+      setNewPostIds((prev) => {
+        const next = new Set(prev);
+        next.delete(post.id);
+        return next;
+      });
+    }, 500);
   }
 
   function handleDelete(postId: string) {
@@ -72,11 +92,17 @@ export default function PostFeed({ initialPosts, initialCursor, user }: PostFeed
 
   return (
     <>
+      <div ref={feedTopRef} />
       <CreatePost userAvatar={user.avatar} onPostCreated={handlePostCreated} />
 
       {posts.length === 0 ? (
         <div className="_feed_inner_area _b_radious6 _padd_t24 _padd_b24 _padd_r24 _padd_l24" style={{ textAlign: 'center' }}>
-          <p style={{ color: '#999' }}>No posts yet. Create your first post!</p>
+          <div style={{ padding: '24px 0' }}>
+            <svg xmlns="http://www.w3.org/2000/svg" width="48" height="48" fill="none" viewBox="0 0 24 24" style={{ opacity: 0.3, marginBottom: '12px' }}>
+              <path stroke="#666" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" d="M12 20h9M16.5 3.5a2.121 2.121 0 013 3L7 19l-4 1 1-4L16.5 3.5z" />
+            </svg>
+            <p style={{ color: '#999', fontSize: '15px', margin: 0 }}>No posts yet. Create your first post!</p>
+          </div>
         </div>
       ) : (
         posts.map((post) => (
@@ -86,6 +112,7 @@ export default function PostFeed({ initialPosts, initialCursor, user }: PostFeed
               currentUser={user}
               onDelete={handleDelete}
               onToggleComments={toggleComments}
+              isNew={newPostIds.has(post.id)}
             />
             {expandedComments.has(post.id) && (
               <CommentSection postId={post.id} currentUser={user} />

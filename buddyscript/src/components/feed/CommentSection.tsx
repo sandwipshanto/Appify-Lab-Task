@@ -4,6 +4,7 @@ import { useState, useEffect, useCallback, useRef } from 'react';
 import LikeButton from './LikeButton';
 import LikesList from './LikesList';
 import TimeAgo from '../ui/TimeAgo';
+import ConfirmModal from '../ui/ConfirmModal';
 import toast from 'react-hot-toast';
 import { useAutoResizeTextArea } from '@/hooks/useAutoResizeTextArea';
 
@@ -32,15 +33,33 @@ interface CommentSectionProps {
   currentUser: CurrentUser;
 }
 
-function timeAgo(dateStr: string): string {
-  const diff = Date.now() - new Date(dateStr).getTime();
-  const mins = Math.floor(diff / 60000);
-  if (mins < 1) return 'just now';
-  if (mins < 60) return `${mins}m ago`;
-  const hrs = Math.floor(mins / 60);
-  if (hrs < 24) return `${hrs}h ago`;
-  const days = Math.floor(hrs / 24);
-  return `${days}d ago`;
+const MAX_COMMENT_LENGTH = 2000;
+const COUNTER_THRESHOLD = 0.8;
+
+/* ── Character counter component ── */
+function CharCounter({ current, max }: { current: number; max: number }) {
+  const ratio = current / max;
+  if (ratio < COUNTER_THRESHOLD) return null;
+  return (
+    <span style={{
+      fontSize: '11px', fontWeight: 500,
+      color: ratio >= 0.95 ? '#ff4d4f' : '#999',
+      transition: 'color 0.2s',
+    }}>
+      {current} / {max}
+    </span>
+  );
+}
+
+/* ── Ctrl+Enter submit handler ── */
+function handleKeyboardSubmit(
+  e: React.KeyboardEvent<HTMLTextAreaElement>,
+  onSubmit: () => void
+) {
+  if ((e.ctrlKey || e.metaKey) && e.key === 'Enter') {
+    e.preventDefault();
+    onSubmit();
+  }
 }
 
 export default function CommentSection({ postId, currentUser }: CommentSectionProps) {
@@ -53,6 +72,15 @@ export default function CommentSection({ postId, currentUser }: CommentSectionPr
   const commentInputRef = useRef<HTMLTextAreaElement>(null);
 
   useAutoResizeTextArea(commentInputRef, newComment);
+
+  // Auto-focus comment input when section mounts
+  useEffect(() => {
+    // Small delay to let the DOM settle after expand animation
+    const timer = setTimeout(() => {
+      commentInputRef.current?.focus();
+    }, 100);
+    return () => clearTimeout(timer);
+  }, []);
 
   const fetchComments = useCallback(async (nextCursor: string | null) => {
     const params = nextCursor ? `?cursor=${nextCursor}` : '';
@@ -77,8 +105,8 @@ export default function CommentSection({ postId, currentUser }: CommentSectionPr
     }));
   }
 
-  async function handleSubmit(e: React.FormEvent) {
-    e.preventDefault();
+  async function handleSubmit(e?: React.FormEvent) {
+    e?.preventDefault();
     if (!newComment.trim() || submitting) return;
     setSubmitting(true);
     try {
@@ -105,17 +133,24 @@ export default function CommentSection({ postId, currentUser }: CommentSectionPr
   return (
     <div className="_b_radious6 _padd_b24 _padd_r24 _padd_l24 _mar_b16" style={{ background: 'var(--bg2, #fff)' }}>
       <form onSubmit={handleSubmit} style={{ display: 'flex', gap: '8px', marginBottom: '16px', paddingTop: '16px' }}>
-        <textarea
-          ref={commentInputRef}
-          className="form-control"
-          placeholder="Write a comment..."
-          value={newComment}
-          onChange={(e) => setNewComment(e.target.value)}
-          maxLength={2000}
-          rows={1}
-          style={{ resize: 'none', overflow: 'hidden' }}
-        />
-        <button type="submit" className="_btn1" disabled={submitting || !newComment.trim()} style={{ padding: '6px 16px', whiteSpace: 'nowrap' }}>
+        <div style={{ flex: 1, position: 'relative' }}>
+          <textarea
+            ref={commentInputRef}
+            className="form-control"
+            placeholder="Write a comment..."
+            value={newComment}
+            onChange={(e) => setNewComment(e.target.value)}
+            onKeyDown={(e) => handleKeyboardSubmit(e, () => handleSubmit())}
+            maxLength={MAX_COMMENT_LENGTH}
+            rows={1}
+            style={{ resize: 'none', overflow: 'hidden' }}
+          />
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginTop: '4px' }}>
+            <span style={{ fontSize: '11px', color: '#bbb' }}>Ctrl+Enter to send</span>
+            <CharCounter current={newComment.length} max={MAX_COMMENT_LENGTH} />
+          </div>
+        </div>
+        <button type="submit" className="_btn1" disabled={submitting || !newComment.trim()} style={{ padding: '6px 16px', whiteSpace: 'nowrap', alignSelf: 'flex-start' }}>
           {submitting ? '...' : 'Send'}
         </button>
       </form>
@@ -149,6 +184,7 @@ function CommentCard({ comment, postId, currentUser, onDelete }: { comment: Comm
   const [showLikes, setShowLikes] = useState(false);
   const [deleting, setDeleting] = useState(false);
   const [deleted, setDeleted] = useState(comment.deleted);
+  const [showConfirm, setShowConfirm] = useState(false);
   const [likesPatch, setLikesPatch] = useState<{ action: 'add' | 'remove'; user: CurrentUser } | null>(null);
   const replyInputRef = useRef<HTMLTextAreaElement>(null);
 
@@ -166,8 +202,8 @@ function CommentCard({ comment, postId, currentUser, onDelete }: { comment: Comm
     setHasMoreReplies(!!data.nextCursor);
   }
 
-  async function handleReplySubmit(e: React.FormEvent) {
-    e.preventDefault();
+  async function handleReplySubmit(e?: React.FormEvent) {
+    e?.preventDefault();
     if (!replyText.trim() || submittingReply) return;
     setSubmittingReply(true);
     try {
@@ -193,7 +229,6 @@ function CommentCard({ comment, postId, currentUser, onDelete }: { comment: Comm
   }
 
   async function handleDelete() {
-    if (!confirm('Delete this comment?')) return;
     setDeleting(true);
     try {
       const res = await fetch(`/api/comments/${comment.id}`, { method: 'DELETE', headers: { Origin: window.location.origin } });
@@ -208,6 +243,7 @@ function CommentCard({ comment, postId, currentUser, onDelete }: { comment: Comm
       toast.error("Network error");
     } finally {
       setDeleting(false);
+      setShowConfirm(false);
     }
   }
 
@@ -215,6 +251,14 @@ function CommentCard({ comment, postId, currentUser, onDelete }: { comment: Comm
     setReplies((prev) => prev.map((r) => r.id === replyId ? { ...r, content: null, deleted: true } : r));
     onDelete(replyId);
   }
+
+  // Auto-focus reply input when replies section opens
+  useEffect(() => {
+    if (showReplies && replyInputRef.current) {
+      const timer = setTimeout(() => replyInputRef.current?.focus(), 100);
+      return () => clearTimeout(timer);
+    }
+  }, [showReplies]);
 
   return (
     <div style={{ marginBottom: '12px', paddingLeft: '0' }}>
@@ -253,7 +297,7 @@ function CommentCard({ comment, postId, currentUser, onDelete }: { comment: Comm
                 Reply
               </button>
               {isOwner && (
-                <button type="button" onClick={handleDelete} disabled={deleting} style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#ff4d4f', fontSize: '12px' }}>
+                <button type="button" onClick={() => setShowConfirm(true)} disabled={deleting} style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#ff4d4f', fontSize: '12px' }}>
                   {deleting ? '...' : 'Delete'}
                 </button>
               )}
@@ -273,17 +317,24 @@ function CommentCard({ comment, postId, currentUser, onDelete }: { comment: Comm
             </button>
           )}
           <form onSubmit={handleReplySubmit} style={{ display: 'flex', gap: '6px', marginTop: '8px' }}>
-            <textarea
-              ref={replyInputRef}
-              className="form-control"
-              placeholder="Write a reply..."
-              value={replyText}
-              onChange={(e) => setReplyText(e.target.value)}
-              maxLength={2000}
-              rows={1}
-              style={{ fontSize: '13px', padding: '4px 8px', resize: 'none', overflow: 'hidden' }}
-            />
-            <button type="submit" className="_btn1" disabled={submittingReply || !replyText.trim()} style={{ padding: '4px 12px', fontSize: '12px', whiteSpace: 'nowrap' }}>
+            <div style={{ flex: 1 }}>
+              <textarea
+                ref={replyInputRef}
+                className="form-control"
+                placeholder="Write a reply..."
+                value={replyText}
+                onChange={(e) => setReplyText(e.target.value)}
+                onKeyDown={(e) => handleKeyboardSubmit(e, () => handleReplySubmit())}
+                maxLength={MAX_COMMENT_LENGTH}
+                rows={1}
+                style={{ fontSize: '13px', padding: '4px 8px', resize: 'none', overflow: 'hidden' }}
+              />
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginTop: '2px' }}>
+                <span style={{ fontSize: '10px', color: '#bbb' }}>Ctrl+Enter</span>
+                <CharCounter current={replyText.length} max={MAX_COMMENT_LENGTH} />
+              </div>
+            </div>
+            <button type="submit" className="_btn1" disabled={submittingReply || !replyText.trim()} style={{ padding: '4px 12px', fontSize: '12px', whiteSpace: 'nowrap', alignSelf: 'flex-start' }}>
               Reply
             </button>
           </form>
@@ -293,6 +344,19 @@ function CommentCard({ comment, postId, currentUser, onDelete }: { comment: Comm
       {showLikes && (
         <LikesList targetType="comment" targetId={comment.id} onClose={() => setShowLikes(false)} optimisticPatch={likesPatch} />
       )}
+
+      {/* Styled confirm dialog for comment deletion */}
+      {showConfirm && (
+        <ConfirmModal
+          title="Delete Comment"
+          message="Are you sure you want to delete this comment?"
+          confirmLabel="Delete"
+          danger
+          loading={deleting}
+          onConfirm={handleDelete}
+          onCancel={() => setShowConfirm(false)}
+        />
+      )}
     </div>
   );
 }
@@ -301,11 +365,11 @@ function ReplyCard({ reply, currentUser, onDelete }: { reply: Comment; currentUs
   const [showLikes, setShowLikes] = useState(false);
   const [deleting, setDeleting] = useState(false);
   const [deleted, setDeleted] = useState(reply.deleted);
+  const [showConfirm, setShowConfirm] = useState(false);
   const [likesPatch, setLikesPatch] = useState<{ action: 'add' | 'remove'; user: CurrentUser } | null>(null);
   const isOwner = reply.authorId === currentUser.id;
 
   async function handleDelete() {
-    if (!confirm('Delete this reply?')) return;
     setDeleting(true);
     try {
       const res = await fetch(`/api/comments/${reply.id}`, { method: 'DELETE', headers: { Origin: window.location.origin } });
@@ -320,6 +384,7 @@ function ReplyCard({ reply, currentUser, onDelete }: { reply: Comment; currentUs
       toast.error("Network error");
     } finally {
       setDeleting(false);
+      setShowConfirm(false);
     }
   }
 
@@ -357,7 +422,7 @@ function ReplyCard({ reply, currentUser, onDelete }: { reply: Comment; currentUs
                 }
               />
               {isOwner && (
-                <button type="button" onClick={handleDelete} disabled={deleting} style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#ff4d4f', fontSize: '11px' }}>
+                <button type="button" onClick={() => setShowConfirm(true)} disabled={deleting} style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#ff4d4f', fontSize: '11px' }}>
                   {deleting ? '...' : 'Delete'}
                 </button>
               )}
@@ -367,6 +432,18 @@ function ReplyCard({ reply, currentUser, onDelete }: { reply: Comment; currentUs
       </div>
       {showLikes && (
         <LikesList targetType="comment" targetId={reply.id} onClose={() => setShowLikes(false)} optimisticPatch={likesPatch} />
+      )}
+      {/* Styled confirm dialog for reply deletion */}
+      {showConfirm && (
+        <ConfirmModal
+          title="Delete Reply"
+          message="Are you sure you want to delete this reply?"
+          confirmLabel="Delete"
+          danger
+          loading={deleting}
+          onConfirm={handleDelete}
+          onCancel={() => setShowConfirm(false)}
+        />
       )}
     </div>
   );

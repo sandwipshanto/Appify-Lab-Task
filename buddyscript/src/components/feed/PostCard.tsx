@@ -1,10 +1,13 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useRef } from 'react';
 import type { Post } from './CreatePost';
 import LikeButton from './LikeButton';
 import LikesList from './LikesList';
 import TimeAgo from '../ui/TimeAgo';
+import ConfirmModal from '../ui/ConfirmModal';
+import ImageLightbox from '../ui/ImageLightbox';
+import { useClickOutside } from '@/hooks/useClickOutside';
 import toast from 'react-hot-toast';
 
 interface PostCardProps {
@@ -17,28 +20,23 @@ interface PostCardProps {
   };
   onDelete: (postId: string) => void;
   onToggleComments?: (postId: string) => void;
+  isNew?: boolean;
 }
 
-function timeAgo(dateStr: string): string {
-  const seconds = Math.floor((Date.now() - new Date(dateStr).getTime()) / 1000);
-  if (seconds < 60) return 'Just now';
-  const minutes = Math.floor(seconds / 60);
-  if (minutes < 60) return `${minutes}m ago`;
-  const hours = Math.floor(minutes / 60);
-  if (hours < 24) return `${hours}h ago`;
-  const days = Math.floor(hours / 24);
-  return `${days}d ago`;
-}
-
-export default function PostCard({ post, currentUser, onDelete, onToggleComments }: PostCardProps) {
+export default function PostCard({ post, currentUser, onDelete, onToggleComments, isNew }: PostCardProps) {
   const [showLikes, setShowLikes] = useState(false);
   const [deleting, setDeleting] = useState(false);
   const [menuOpen, setMenuOpen] = useState(false);
+  const [showConfirm, setShowConfirm] = useState(false);
+  const [showLightbox, setShowLightbox] = useState(false);
   const [likesPatch, setLikesPatch] = useState<{ action: 'add' | 'remove'; user: { id: string; firstName: string; lastName: string; avatar: string | null } } | null>(null);
   const isOwner = post.authorId === currentUser.id;
 
+  // Click-outside to close kebab menu
+  const menuRef = useRef<HTMLDivElement>(null);
+  useClickOutside(menuRef, () => setMenuOpen(false), menuOpen);
+
   async function handleDelete() {
-    if (!confirm('Delete this post?')) return;
     setDeleting(true);
     try {
       const res = await fetch(`/api/posts/${post.id}`, { method: 'DELETE', headers: { Origin: window.location.origin } });
@@ -52,12 +50,18 @@ export default function PostCard({ post, currentUser, onDelete, onToggleComments
       toast.error('Network error');
     } finally {
       setDeleting(false);
+      setShowConfirm(false);
       setMenuOpen(false);
     }
   }
 
   return (
-    <div className="_feed_inner_timeline_post_area _b_radious6 _padd_b24 _padd_t24 _mar_b16">
+    <div
+      className="_feed_inner_timeline_post_area _b_radious6 _padd_b24 _padd_t24 _mar_b16"
+      style={isNew ? {
+        animation: 'postSlideIn 0.35s ease-out',
+      } : undefined}
+    >
       <div className="_feed_inner_timeline_content _padd_r24 _padd_l24">
         <div className="_feed_inner_timeline_post_top">
           <div className="_feed_inner_timeline_post_box">
@@ -78,12 +82,13 @@ export default function PostCard({ post, currentUser, onDelete, onToggleComments
             </div>
           </div>
           {isOwner && (
-            <div className="_feed_inner_timeline_post_box_dropdown" style={{ position: 'relative' }}>
+            <div className="_feed_inner_timeline_post_box_dropdown" style={{ position: 'relative' }} ref={menuRef}>
               <div className="_feed_timeline_post_dropdown">
                 <button
                   className="_feed_timeline_post_dropdown_link"
                   type="button"
                   onClick={() => setMenuOpen(!menuOpen)}
+                  style={{ padding: '8px 10px' }}
                 >
                   <svg xmlns="http://www.w3.org/2000/svg" width="4" height="17" fill="none" viewBox="0 0 4 17">
                     <circle cx="2" cy="2" r="2" fill="#C4C4C4" />
@@ -98,8 +103,7 @@ export default function PostCard({ post, currentUser, onDelete, onToggleComments
                     <li className="_feed_timeline_dropdown_item">
                       <button
                         className="_feed_timeline_dropdown_link"
-                        onClick={handleDelete}
-                        disabled={deleting}
+                        onClick={() => { setMenuOpen(false); setShowConfirm(true); }}
                         style={{ background: 'none', border: 'none', cursor: 'pointer', width: '100%', textAlign: 'left', display: 'flex', alignItems: 'center', gap: '8px', padding: '8px 12px' }}
                       >
                         <span>
@@ -107,7 +111,7 @@ export default function PostCard({ post, currentUser, onDelete, onToggleComments
                             <path stroke="#1890FF" strokeLinecap="round" strokeLinejoin="round" strokeWidth="1.2" d="M2.25 4.5h13.5M6 4.5V3a1.5 1.5 0 011.5-1.5h3A1.5 1.5 0 0112 3v1.5m2.25 0V15a1.5 1.5 0 01-1.5 1.5h-7.5a1.5 1.5 0 01-1.5-1.5V4.5h10.5z" />
                           </svg>
                         </span>
-                        {deleting ? 'Deleting...' : 'Delete Post'}
+                        Delete Post
                       </button>
                     </li>
                   </ul>
@@ -121,7 +125,13 @@ export default function PostCard({ post, currentUser, onDelete, onToggleComments
         )}
         {post.imageUrl && (
           <div className="_feed_inner_timeline_image">
-            <img src={post.imageUrl} alt="Post image" className="_time_img" />
+            <img
+              src={post.imageUrl}
+              alt="Post image"
+              className="_time_img"
+              style={{ cursor: 'zoom-in' }}
+              onClick={() => setShowLightbox(true)}
+            />
           </div>
         )}
       </div>
@@ -165,6 +175,38 @@ export default function PostCard({ post, currentUser, onDelete, onToggleComments
           onClose={() => setShowLikes(false)}
           optimisticPatch={likesPatch}
         />
+      )}
+
+      {/* Styled confirm dialog for delete */}
+      {showConfirm && (
+        <ConfirmModal
+          title="Delete Post"
+          message="Are you sure you want to delete this post? This action cannot be undone."
+          confirmLabel="Delete"
+          danger
+          loading={deleting}
+          onConfirm={handleDelete}
+          onCancel={() => setShowConfirm(false)}
+        />
+      )}
+
+      {/* Image lightbox */}
+      {showLightbox && post.imageUrl && (
+        <ImageLightbox
+          src={post.imageUrl}
+          alt="Post image"
+          onClose={() => setShowLightbox(false)}
+        />
+      )}
+
+      {/* Slide-in animation keyframes */}
+      {isNew && (
+        <style>{`
+          @keyframes postSlideIn {
+            from { opacity: 0; transform: translateY(-12px); }
+            to { opacity: 1; transform: translateY(0); }
+          }
+        `}</style>
       )}
     </div>
   );

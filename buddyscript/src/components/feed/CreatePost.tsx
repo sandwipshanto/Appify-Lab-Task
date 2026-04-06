@@ -29,6 +29,8 @@ export interface Post {
 
 const ALLOWED_TYPES = ['image/jpeg', 'image/png', 'image/gif', 'image/webp'];
 const MAX_SIZE = 5 * 1024 * 1024; // 5MB
+const MAX_CONTENT_LENGTH = 5000;
+const COUNTER_THRESHOLD = 0.8; // Show counter at 80%
 
 export default function CreatePost({ userAvatar, onPostCreated }: CreatePostProps) {
   const [content, setContent] = useState('');
@@ -42,6 +44,10 @@ export default function CreatePost({ userAvatar, onPostCreated }: CreatePostProp
   const textAreaRef = useRef<HTMLTextAreaElement>(null);
 
   useAutoResizeTextArea(textAreaRef, content);
+
+  const charRatio = content.length / MAX_CONTENT_LENGTH;
+  const showCounter = charRatio >= COUNTER_THRESHOLD;
+  const counterNearLimit = charRatio >= 0.95;
 
   function handleFileSelect(e: React.ChangeEvent<HTMLInputElement>) {
     const file = e.target.files?.[0];
@@ -155,7 +161,7 @@ export default function CreatePost({ userAvatar, onPostCreated }: CreatePostProp
               className="_txt_img"
             />
           </div>
-          <div className="form-floating _feed_inner_text_area_box_form">
+          <div className="_feed_inner_text_area_box_form" style={{ position: 'relative' }}>
             <textarea
               ref={textAreaRef}
               className="form-control _textarea"
@@ -163,12 +169,26 @@ export default function CreatePost({ userAvatar, onPostCreated }: CreatePostProp
               id="createPostTextarea"
               value={content}
               onChange={(e) => setContent(e.target.value)}
-              maxLength={5000}
+              maxLength={MAX_CONTENT_LENGTH}
               style={{ overflow: 'hidden' }}
             />
-            <label className="_feed_textarea_label" htmlFor="createPostTextarea">
-              Write something ...
-            </label>
+            {!content && (
+              <label className="_feed_textarea_label" htmlFor="createPostTextarea">
+                Write something ...
+              </label>
+            )}
+            {/* Character counter — only shown when approaching limit */}
+            {showCounter && (
+              <div style={{
+                position: 'absolute', right: '8px', bottom: '8px',
+                fontSize: '11px', fontWeight: 500, 
+                color: counterNearLimit ? '#ff4d4f' : '#999',
+                transition: 'color 0.2s',
+                pointerEvents: 'none',
+              }}>
+                {content.length} / {MAX_CONTENT_LENGTH}
+              </div>
+            )}
           </div>
         </div>
 

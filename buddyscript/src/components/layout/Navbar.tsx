@@ -1,7 +1,8 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useRef } from 'react';
 import { useRouter } from 'next/navigation';
+import { useClickOutside } from '@/hooks/useClickOutside';
 
 interface NavbarProps {
   user: {
@@ -14,6 +15,10 @@ interface NavbarProps {
 export default function Navbar({ user }: NavbarProps) {
   const router = useRouter();
   const [dropdownOpen, setDropdownOpen] = useState(false);
+  const dropdownRef = useRef<HTMLDivElement>(null);
+
+  // Click-outside to close profile dropdown
+  useClickOutside(dropdownRef, () => setDropdownOpen(false), dropdownOpen);
 
   async function handleLogout() {
     await fetch('/api/auth/logout', { method: 'POST' });
@@ -80,25 +85,31 @@ export default function Navbar({ user }: NavbarProps) {
               </span>
             </li>
           </ul>
-          <div className="_header_nav_profile">
-            <div className="_header_nav_profile_image">
+          <div className="_header_nav_profile" ref={dropdownRef}>
+            <div
+              className="_header_nav_profile_image"
+              onClick={() => setDropdownOpen(!dropdownOpen)}
+              style={{ cursor: 'pointer' }}
+            >
               <img
                 src={user.avatar || '/assets/images/default_avatar.png'}
                 alt="Profile"
                 className="_nav_profile_img"
               />
             </div>
-            <div className="_header_nav_dropdown">
+            <div
+              className="_header_nav_dropdown"
+              onClick={() => setDropdownOpen(!dropdownOpen)}
+              role="button"
+              tabIndex={0}
+              onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); setDropdownOpen(!dropdownOpen); } }}
+            >
               <p className="_header_nav_para">{user.firstName} {user.lastName}</p>
-              <button
-                className="_header_nav_dropdown_btn _dropdown_toggle"
-                type="button"
-                onClick={() => setDropdownOpen(!dropdownOpen)}
-              >
+              <span className="_header_nav_dropdown_btn _dropdown_toggle">
                 <svg xmlns="http://www.w3.org/2000/svg" width="10" height="6" fill="none" viewBox="0 0 10 6">
                   <path fill="#112032" d="M5 5l.354.354L5 5.707l-.354-.353L5 5zm4.354-3.646l-4 4-.708-.708 4-4 .708.708zm-4.708 4l-4-4 .708-.708 4 4-.708.708z" />
                 </svg>
-              </button>
+              </span>
             </div>
             <div className={`_nav_profile_dropdown _profile_dropdown${dropdownOpen ? ' show' : ''}`}>
                 <div className="_nav_profile_dropdown_info">
