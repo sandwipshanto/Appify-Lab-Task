@@ -36,10 +36,12 @@ export default async function FeedPage() {
     visibility: p.visibility as 'PUBLIC' | 'PRIVATE',
     likeCount: p.likeCount,
     commentCount: p.commentCount,
+    shareCount: 0,
     createdAt: p.createdAt.toISOString(),
     authorId: p.authorId,
     author: p.author,
-    liked: p.likes.length > 0,
+    liked: p.liked,
+    likes: p.likes,
   }));
 
   return (
