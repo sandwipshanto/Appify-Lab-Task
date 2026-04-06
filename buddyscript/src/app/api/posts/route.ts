@@ -68,6 +68,7 @@ export async function POST(request: Request) {
       },
     });
 
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const { _count, ...rest } = post as any;
     // Invalidate the author's feed cache so they see their new post immediately
     await invalidateUserFeedCache(userId);
