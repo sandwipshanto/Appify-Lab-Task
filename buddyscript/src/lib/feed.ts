@@ -1,7 +1,7 @@
 import { prisma } from './db';
 import { CacheKey, TTL, cacheGet, cacheSet } from './cache';
 
-const POST_SELECT = (userId: string) => ({
+const POST_SELECT = () => ({
   id: true,
   content: true,
   imageUrl: true,
@@ -21,7 +21,7 @@ export async function getFeedPage(
 ) {
   // ─── Cache Check ─────────────────────────────────────────────
   const cacheKey = CacheKey.feed(userId, cursor, limit);
-  const cached = await cacheGet<{ posts: any[]; nextCursor: string | null }>(cacheKey);
+  const cached = await cacheGet<{ posts: unknown[]; nextCursor: string | null }>(cacheKey);
   if (cached) return cached;
 
   // ─── DB Query ────────────────────────────────────────────────
@@ -40,7 +40,7 @@ export async function getFeedPage(
       },
       orderBy: [{ createdAt: 'desc' }, { id: 'desc' }],
       take: limit,
-      select: POST_SELECT(userId),
+      select: POST_SELECT(),
     }),
     prisma.post.findMany({
       where: {
@@ -55,7 +55,7 @@ export async function getFeedPage(
       },
       orderBy: [{ createdAt: 'desc' }, { id: 'desc' }],
       take: limit,
-      select: POST_SELECT(userId),
+      select: POST_SELECT(),
     }),
   ]);
 

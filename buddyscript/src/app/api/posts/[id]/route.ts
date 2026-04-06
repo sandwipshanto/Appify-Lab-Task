@@ -61,6 +61,7 @@ export async function GET(
       return NextResponse.json({ error: 'Not found' }, { status: 404 });
     }
 
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const { _count, ...rest } = post as any;
     const mappedPost = {
       ...rest,
