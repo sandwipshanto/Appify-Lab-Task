@@ -36,6 +36,48 @@ interface CommentSectionProps {
 const MAX_COMMENT_LENGTH = 2000;
 const COUNTER_THRESHOLD = 0.8;
 
+/* ── Inline keyframes for send-button feedback ── */
+const sendBtnStyles = `
+@keyframes _spin_send {
+  to { transform: rotate(360deg); }
+}
+@keyframes _send_pop {
+  0%   { transform: scale(1); }
+  40%  { transform: scale(0.8); }
+  70%  { transform: scale(1.15); }
+  100% { transform: scale(1); }
+}
+._feed_inner_comment_box_icon_btn {
+  transition: transform 0.15s ease, opacity 0.2s ease, background-color 0.15s ease;
+}
+._feed_inner_comment_box_icon_btn:hover:not(:disabled) {
+  transform: scale(1.12);
+  background-color: rgba(55,125,255,0.08);
+}
+._feed_inner_comment_box_icon_btn:active:not(:disabled) {
+  transform: scale(0.92);
+}
+._feed_inner_comment_box_icon_btn._sending {
+  animation: _send_pop 0.35s ease;
+  pointer-events: none;
+}
+`;
+if (typeof document !== 'undefined' && !document.getElementById('_send_btn_fx')) {
+  const s = document.createElement('style');
+  s.id = '_send_btn_fx';
+  s.textContent = sendBtnStyles;
+  document.head.appendChild(s);
+}
+
+/* ── Spinner shown inside the send button while posting ── */
+function SendSpinner() {
+  return (
+    <svg width="16" height="16" viewBox="0 0 16 16" fill="none" style={{ animation: '_spin_send 0.6s linear infinite' }}>
+      <circle cx="8" cy="8" r="6" stroke="#377DFF" strokeWidth="2.5" strokeDasharray="28" strokeDashoffset="8" strokeLinecap="round" />
+    </svg>
+  );
+}
+
 /* ── Character counter component ── */
 function CharCounter({ current, max }: { current: number; max: number }) {
   const ratio = current / max;
@@ -171,8 +213,8 @@ export default function CommentSection({ postId, currentUser }: CommentSectionPr
             </div>
           </div>
           <div className="_feed_inner_comment_box_icon">
-            <button type="submit" disabled={submitting || !newComment.trim()} className="_feed_inner_comment_box_icon_btn" style={{ opacity: (!newComment.trim() || submitting) ? 0.5 : 1 }}>
-               {submitting ? '...' : (
+            <button type="submit" disabled={submitting || !newComment.trim()} className={`_feed_inner_comment_box_icon_btn${submitting ? ' _sending' : ''}`} style={{ opacity: (!newComment.trim() || submitting) ? 0.5 : 1 }}>
+               {submitting ? <SendSpinner /> : (
                  <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" fill="none" viewBox="0 0 16 16"><path fill="#377DFF" d="M14.667 8L1.333 14.667V9.333L10.667 8 1.333 6.667V1.333L14.667 8z"/></svg>
                )}
             </button>
@@ -374,8 +416,8 @@ function CommentCard({ comment, postId, currentUser, onDelete }: { comment: Comm
                   </div>
                 </div>
                 <div className="_feed_inner_comment_box_icon">
-                  <button type="submit" disabled={submittingReply || !replyText.trim()} className="_feed_inner_comment_box_icon_btn" style={{ opacity: (!replyText.trim() || submittingReply) ? 0.5 : 1 }}>
-                     {submittingReply ? '...' : (
+                  <button type="submit" disabled={submittingReply || !replyText.trim()} className={`_feed_inner_comment_box_icon_btn${submittingReply ? ' _sending' : ''}`} style={{ opacity: (!replyText.trim() || submittingReply) ? 0.5 : 1 }}>
+                     {submittingReply ? <SendSpinner /> : (
                        <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" fill="none" viewBox="0 0 16 16"><path fill="#377DFF" d="M14.667 8L1.333 14.667V9.333L10.667 8 1.333 6.667V1.333L14.667 8z"/></svg>
                      )}
                   </button>
