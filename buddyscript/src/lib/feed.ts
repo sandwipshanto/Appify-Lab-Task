@@ -21,7 +21,8 @@ export async function getFeedPage(
 ) {
   // ─── Cache Check ─────────────────────────────────────────────
   const cacheKey = CacheKey.feed(userId, cursor, limit);
-  const cached = await cacheGet<{ posts: unknown[]; nextCursor: string | null }>(cacheKey);
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const cached = await cacheGet<{ posts: any[]; nextCursor: string | null }>(cacheKey);
   if (cached) return cached;
 
   // ─── DB Query ────────────────────────────────────────────────

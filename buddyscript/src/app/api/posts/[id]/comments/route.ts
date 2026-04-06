@@ -32,7 +32,8 @@ export async function GET(
 
     // ─── Cache Check ─────────────────────────────────────────
     const cacheKey = CacheKey.comments(postId, userId, cursor);
-    const cached = await cacheGet<{ comments: unknown[]; nextCursor: string | null }>(cacheKey);
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const cached = await cacheGet<{ comments: any[]; nextCursor: string | null }>(cacheKey);
     if (cached) return NextResponse.json(cached);
 
     // ─── DB Query ────────────────────────────────────────────
