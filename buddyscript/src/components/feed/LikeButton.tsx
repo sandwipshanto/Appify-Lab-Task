@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useRef } from 'react';
+import { useState, useRef, ReactNode } from 'react';
 
 interface LikeButtonProps {
   targetType: 'post' | 'comment';
@@ -8,26 +8,26 @@ interface LikeButtonProps {
   liked: boolean;
   likeCount: number;
   onLikeCountClick?: () => void;
-  /** Called immediately after the optimistic state flip with the new liked value */
   onToggle?: (liked: boolean) => void;
+  // If provided, we use the render prop pattern. Otherwise, we just return the generic button.
+  children?: (props: {
+    liked: boolean;
+    likeCount: number;
+    isLiking: boolean;
+    handleToggle: () => void;
+  }) => ReactNode;
 }
 
-export default function LikeButton({ targetType, targetId, liked: initialLiked, likeCount: initialCount, onLikeCountClick, onToggle }: LikeButtonProps) {
+export default function LikeButton({ targetType, targetId, liked: initialLiked, likeCount: initialCount, onLikeCountClick, onToggle, children }: LikeButtonProps) {
   const [liked, setLiked] = useState(initialLiked);
   const [count, setCount] = useState(initialCount);
-  // Use a ref-based debounce instead of state-based locking so the button
-  // is never visually frozen. A 300 ms window is enough to prevent genuine
-  // double-taps without blocking the user after the optimistic update fires.
   const debounceRef = useRef(false);
 
   async function handleToggle() {
     if (debounceRef.current) return;
     debounceRef.current = true;
-    // Release the debounce after a short window — well before the API
-    // responds — so rapid-but-intentional second clicks still work.
     setTimeout(() => { debounceRef.current = false; }, 300);
 
-    // Optimistic update — happens instantly, no visual lock needed
     const wasLiked = liked;
     onToggle?.(!wasLiked);
     setLiked(!wasLiked);
@@ -44,25 +44,33 @@ export default function LikeButton({ targetType, targetId, liked: initialLiked, 
       });
 
       if (!res.ok) {
-        // Revert optimistic update
         setLiked(wasLiked);
         setCount((c) => (wasLiked ? c + 1 : c - 1));
       } else {
         const data = await res.json();
-        // Use server-returned count for accuracy
         if (typeof data.likeCount === 'number') {
           setCount(data.likeCount);
         }
       }
     } catch {
-      // Revert on network error
       setLiked(wasLiked);
       setCount((c) => (wasLiked ? c + 1 : c - 1));
     }
   }
 
+  // If using render props (e.g. for PostCard complex layout)
+  if (children) {
+    return children({
+      liked,
+      likeCount: count,
+      isLiking: debounceRef.current,
+      handleToggle
+    });
+  }
+
+  // Fallback default UI (used in minimal places)
   return (
-    <div className="_feed_inner_timeline_total_reacts _padd_r24 _padd_l24 _mar_b26" style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+    <>
       <button
         className={`_feed_inner_timeline_reaction_emoji _feed_reaction${liked ? ' _feed_reaction_active' : ''}`}
         onClick={handleToggle}
@@ -93,6 +101,7 @@ export default function LikeButton({ targetType, targetId, liked: initialLiked, 
           {count} {count === 1 ? 'like' : 'likes'}
         </button>
       )}
-    </div>
+    </>
   );
 }
+

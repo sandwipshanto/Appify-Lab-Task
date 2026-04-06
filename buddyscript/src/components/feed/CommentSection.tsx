@@ -261,85 +261,111 @@ function CommentCard({ comment, postId, currentUser, onDelete }: { comment: Comm
   }, [showReplies]);
 
   return (
-    <div style={{ marginBottom: '12px', paddingLeft: '0' }}>
-      <div style={{ display: 'flex', gap: '10px', alignItems: 'flex-start' }}>
-        <img
-          src={comment.author.avatar || '/assets/images/default_avatar.png'}
-          alt={`${comment.author.firstName}`}
-          style={{ width: '32px', height: '32px', borderRadius: '50%', objectFit: 'cover', marginTop: '2px' }}
-        />
-        <div style={{ flex: 1 }}>
-          <div style={{ background: '#f5f5f5', borderRadius: '12px', padding: '8px 12px' }}>
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-              <strong style={{ fontSize: '13px' }}>{comment.author.firstName} {comment.author.lastName}</strong>
-              <span style={{ fontSize: '11px', color: '#999' }}><TimeAgo timestamp={comment.createdAt} /></span>
+    <div className="_comment_main" style={deleted ? { opacity: 0.6 } : undefined}>
+      <div className="_comment_image">
+        <a href="#0" className="_comment_image_link">
+          <img
+            src={comment.author.avatar || '/assets/images/default_avatar.png'}
+            alt=""
+            className="_comment_img1"
+            style={{ objectFit: 'cover' }}
+          />
+        </a>
+      </div>
+      <div className="_comment_area">
+        <div className="_comment_details">
+          <div className="_comment_details_top">
+            <div className="_comment_name">
+              <a href="#0">
+                <h4 className="_comment_name_title">{comment.author.firstName} {comment.author.lastName}</h4>
+              </a>
             </div>
-            <p style={{ margin: '2px 0 0', fontSize: '13px', color: deleted ? '#999' : '#333' }}>
-              {deleted ? <em>This comment has been deleted</em> : comment.content}
+          </div>
+          <div className="_comment_status">
+            <p className="_comment_status_text">
+              <span>{deleted ? <em>This comment has been deleted</em> : comment.content}</span>
             </p>
           </div>
+          
+          <div className="_total_reactions" onClick={() => setShowLikes(true)} style={comment.likeCount > 0 ? { cursor: 'pointer' } : {}}>
+            {comment.likeCount > 0 && (
+              <>
+                <div className="_total_react">
+                  <span className="_reaction_like">
+                    <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="feather feather-thumbs-up"><path d="M14 9V5a3 3 0 0 0-3-3l-4 9v11h11.28a2 2 0 0 0 2-1.7l1.38-9a2 2 0 0 0-2-2.3zM7 22H4a2 2 0 0 1-2-2v-7a2 2 0 0 1 2-2h3"></path></svg>
+                  </span>
+                </div>
+                <span className="_total">{comment.likeCount}</span>
+              </>
+            )}
+          </div>
+          
           {!deleted && (
-            <div style={{ display: 'flex', gap: '12px', alignItems: 'center', marginTop: '4px', fontSize: '12px', color: '#999' }}>
-              <LikeButton
-                targetType="comment"
-                targetId={comment.id}
-                liked={comment.liked}
-                likeCount={comment.likeCount}
-                onLikeCountClick={() => setShowLikes(true)}
-                onToggle={(nowLiked) =>
-                  setLikesPatch({
-                    action: nowLiked ? 'add' : 'remove',
-                    user: currentUser,
-                  })
-                }
-              />
-              <button type="button" onClick={() => setShowReplies(!showReplies)} style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#666', fontSize: '12px' }}>
-                Reply
-              </button>
-              {isOwner && (
-                <button type="button" onClick={() => setShowConfirm(true)} disabled={deleting} style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#ff4d4f', fontSize: '12px' }}>
-                  {deleting ? '...' : 'Delete'}
-                </button>
-              )}
-            </div>
-          )}
-        </div>
-      </div>
-
-      {showReplies && (
-        <div style={{ marginLeft: '42px', marginTop: '8px' }}>
-          {replies.map((reply) => (
-            <ReplyCard key={reply.id} reply={reply} currentUser={currentUser} onDelete={handleReplyDelete} />
-          ))}
-          {hasMoreReplies && (
-            <button onClick={loadMoreReplies} style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#377DFF', fontSize: '12px', padding: '4px 0' }}>
-              Load more replies
-            </button>
-          )}
-          <form onSubmit={handleReplySubmit} style={{ display: 'flex', gap: '6px', marginTop: '8px' }}>
-            <div style={{ flex: 1 }}>
-              <textarea
-                ref={replyInputRef}
-                className="form-control"
-                placeholder="Write a reply..."
-                value={replyText}
-                onChange={(e) => setReplyText(e.target.value)}
-                onKeyDown={(e) => handleKeyboardSubmit(e, () => handleReplySubmit())}
-                maxLength={MAX_COMMENT_LENGTH}
-                rows={1}
-                style={{ fontSize: '13px', padding: '4px 8px', resize: 'none', overflow: 'hidden' }}
-              />
-              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginTop: '2px' }}>
-                <span style={{ fontSize: '10px', color: '#bbb' }}>Ctrl+Enter</span>
-                <CharCounter current={replyText.length} max={MAX_COMMENT_LENGTH} />
+            <div className="_comment_reply">
+              <div className="_comment_reply_num">
+                <ul className="_comment_reply_list">
+                  <li>
+                    <LikeButton targetType="comment" targetId={comment.id} liked={comment.liked} likeCount={comment.likeCount} onToggle={(nowLiked) => setLikesPatch({ action: nowLiked ? 'add' : 'remove', user: currentUser })}>
+                      {({ liked, handleToggle }) => (
+                         <span onClick={handleToggle} style={{ cursor: 'pointer', fontWeight: liked ? 600 : 'normal', color: liked ? '#377DFF' : 'inherit' }}>Like.</span>
+                      )}
+                    </LikeButton>
+                  </li>
+                  <li><span onClick={() => setShowReplies(!showReplies)} style={{ cursor: 'pointer' }}>Reply.</span></li>
+                  {isOwner && <li><span onClick={() => setShowConfirm(true)} style={{ cursor: 'pointer', color: '#ff4d4f' }}>{deleting ? '...' : 'Delete'}</span></li>}
+                  <li><span className="_time_link"><TimeAgo timestamp={comment.createdAt} /></span></li>
+                </ul>
               </div>
             </div>
-            <button type="submit" className="_btn1" disabled={submittingReply || !replyText.trim()} style={{ padding: '4px 12px', fontSize: '12px', whiteSpace: 'nowrap', alignSelf: 'flex-start' }}>
-              Reply
-            </button>
-          </form>
+          )}
         </div>
-      )}
+
+        {showReplies && (
+          <div style={{ marginTop: '16px' }}>
+            {replies.map((reply) => (
+              <ReplyCard key={reply.id} reply={reply} currentUser={currentUser} onDelete={handleReplyDelete} />
+            ))}
+            {hasMoreReplies && (
+              <button onClick={loadMoreReplies} style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#377DFF', fontSize: '13px', padding: '8px 0', marginLeft: '42px', marginBottom: '8px' }}>
+                Load more replies...
+              </button>
+            )}
+            
+            <div className="_feed_inner_comment_box" style={{ marginTop: '8px' }}>
+              <form className="_feed_inner_comment_box_form" onSubmit={handleReplySubmit}>
+                <div className="_feed_inner_comment_box_content">
+                  <div className="_feed_inner_comment_box_content_image">
+                    <img src={currentUser.avatar || '/assets/images/default_avatar.png'} alt="" className="_comment_img" />
+                  </div>
+                  <div className="_feed_inner_comment_box_content_txt" style={{ position: 'relative', width: '100%', flex: 1 }}>
+                    <textarea
+                      ref={replyInputRef}
+                      className="form-control _comment_textarea"
+                      placeholder="Write a reply..."
+                      value={replyText}
+                      onChange={(e) => setReplyText(e.target.value)}
+                      onKeyDown={(e) => handleKeyboardSubmit(e, () => handleReplySubmit())}
+                      maxLength={MAX_COMMENT_LENGTH}
+                      rows={1}
+                      style={{ resize: 'none', overflow: 'hidden', minHeight: '38px', paddingTop: '8px' }}
+                    />
+                    <div style={{ position: 'absolute', right: '10px', top: '50%', transform: 'translateY(-50%)' }}>
+                       <CharCounter current={replyText.length} max={MAX_COMMENT_LENGTH} />
+                    </div>
+                  </div>
+                </div>
+                <div className="_feed_inner_comment_box_icon">
+                  <button type="submit" disabled={submittingReply || !replyText.trim()} className="_feed_inner_comment_box_icon_btn" style={{ opacity: (!replyText.trim() || submittingReply) ? 0.5 : 1 }}>
+                     {submittingReply ? '...' : (
+                       <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" fill="none" viewBox="0 0 16 16"><path fill="#377DFF" d="M14.667 8L1.333 14.667V9.333L10.667 8 1.333 6.667V1.333L14.667 8z"/></svg>
+                     )}
+                  </button>
+                </div>
+              </form>
+            </div>
+          </div>
+        )}
+      </div>
 
       {showLikes && (
         <LikesList targetType="comment" targetId={comment.id} onClose={() => setShowLikes(false)} optimisticPatch={likesPatch} />
@@ -389,43 +415,60 @@ function ReplyCard({ reply, currentUser, onDelete }: { reply: Comment; currentUs
   }
 
   return (
-    <div style={{ marginBottom: '8px' }}>
-      <div style={{ display: 'flex', gap: '8px', alignItems: 'flex-start' }}>
-        <img
-          src={reply.author.avatar || '/assets/images/default_avatar.png'}
-          alt={`${reply.author.firstName}`}
-          style={{ width: '28px', height: '28px', borderRadius: '50%', objectFit: 'cover', marginTop: '2px' }}
-        />
-        <div style={{ flex: 1 }}>
-          <div style={{ background: '#f0f0f0', borderRadius: '10px', padding: '6px 10px' }}>
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-              <strong style={{ fontSize: '12px' }}>{reply.author.firstName} {reply.author.lastName}</strong>
-              <span style={{ fontSize: '10px', color: '#999' }}><TimeAgo timestamp={reply.createdAt} /></span>
+    <div className="_comment_main" style={deleted ? { opacity: 0.6 } : undefined}>
+      <div className="_comment_image">
+        <a href="#0" className="_comment_image_link">
+          <img
+            src={reply.author.avatar || '/assets/images/default_avatar.png'}
+            alt=""
+            className="_comment_img1"
+            style={{ objectFit: 'cover' }}
+          />
+        </a>
+      </div>
+      <div className="_comment_area">
+        <div className="_comment_details">
+          <div className="_comment_details_top">
+            <div className="_comment_name">
+              <a href="#0">
+                <h4 className="_comment_name_title">{reply.author.firstName} {reply.author.lastName}</h4>
+              </a>
             </div>
-            <p style={{ margin: '2px 0 0', fontSize: '12px', color: deleted ? '#999' : '#333' }}>
-              {deleted ? <em>This reply has been deleted</em> : reply.content}
+          </div>
+          <div className="_comment_status">
+            <p className="_comment_status_text">
+              <span>{deleted ? <em>This reply has been deleted</em> : reply.content}</span>
             </p>
           </div>
+          
+          <div className="_total_reactions" onClick={() => setShowLikes(true)} style={reply.likeCount > 0 ? { cursor: 'pointer' } : {}}>
+            {reply.likeCount > 0 && (
+              <>
+                <div className="_total_react">
+                  <span className="_reaction_like">
+                    <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="feather feather-thumbs-up"><path d="M14 9V5a3 3 0 0 0-3-3l-4 9v11h11.28a2 2 0 0 0 2-1.7l1.38-9a2 2 0 0 0-2-2.3zM7 22H4a2 2 0 0 1-2-2v-7a2 2 0 0 1 2-2h3"></path></svg>
+                  </span>
+                </div>
+                <span className="_total">{reply.likeCount}</span>
+              </>
+            )}
+          </div>
+          
           {!deleted && (
-            <div style={{ display: 'flex', gap: '12px', alignItems: 'center', marginTop: '2px', fontSize: '11px' }}>
-              <LikeButton
-                targetType="comment"
-                targetId={reply.id}
-                liked={reply.liked}
-                likeCount={reply.likeCount}
-                onLikeCountClick={() => setShowLikes(true)}
-                onToggle={(nowLiked) =>
-                  setLikesPatch({
-                    action: nowLiked ? 'add' : 'remove',
-                    user: currentUser,
-                  })
-                }
-              />
-              {isOwner && (
-                <button type="button" onClick={() => setShowConfirm(true)} disabled={deleting} style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#ff4d4f', fontSize: '11px' }}>
-                  {deleting ? '...' : 'Delete'}
-                </button>
-              )}
+            <div className="_comment_reply">
+              <div className="_comment_reply_num">
+                <ul className="_comment_reply_list">
+                  <li>
+                    <LikeButton targetType="comment" targetId={reply.id} liked={reply.liked} likeCount={reply.likeCount} onToggle={(nowLiked) => setLikesPatch({ action: nowLiked ? 'add' : 'remove', user: currentUser })}>
+                      {({ liked, handleToggle }) => (
+                         <span onClick={handleToggle} style={{ cursor: 'pointer', fontWeight: liked ? 600 : 'normal', color: liked ? '#377DFF' : 'inherit' }}>Like.</span>
+                      )}
+                    </LikeButton>
+                  </li>
+                  {isOwner && <li><span onClick={() => setShowConfirm(true)} style={{ cursor: 'pointer', color: '#ff4d4f' }}>{deleting ? '...' : 'Delete'}</span></li>}
+                  <li><span className="_time_link"><TimeAgo timestamp={reply.createdAt} /></span></li>
+                </ul>
+              </div>
             </div>
           )}
         </div>
@@ -433,7 +476,6 @@ function ReplyCard({ reply, currentUser, onDelete }: { reply: Comment; currentUs
       {showLikes && (
         <LikesList targetType="comment" targetId={reply.id} onClose={() => setShowLikes(false)} optimisticPatch={likesPatch} />
       )}
-      {/* Styled confirm dialog for reply deletion */}
       {showConfirm && (
         <ConfirmModal
           title="Delete Reply"
